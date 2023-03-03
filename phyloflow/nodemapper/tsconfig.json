@@ -1,6 +1,7 @@
 {
 	"compileOnSave": false,
 	"compilerOptions": {
+		"esModuleInterop": true,
 		"declaration": false,
 		"jsx": "react",
 		"allowJs": true,

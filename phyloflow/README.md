@@ -6,14 +6,6 @@ Mockup of user interface for phylogenetic workflows that will translate (and pot
   - Initially, translate represent only single tutorial step
   - Steps can represent 'sub-modules' in the eventual build system
 
-## Dependencies
-
-- Workflow manager
-  - [snakemake](https://snakemake.readthedocs.io/en/stable/) (Python)
-- Front-end
-  - [projectstorm diagrams](https://github.com/projectstorm/react-diagrams) (React)
-  - [sliding pane](https://www.npmjs.com/package/react-sliding-pane) (React)
-
 ## Current objectives
 
 - [ ] Build node graph structure for one tutorial snakemake step

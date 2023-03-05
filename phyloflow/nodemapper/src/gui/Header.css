@@ -1,0 +1,8 @@
+*{
+	margin: 0;
+	padding: 0;
+}
+
+html, body, #header-panel, #header-panel>div {
+    background: #DDDDDD;
+}

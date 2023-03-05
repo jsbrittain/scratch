@@ -12,7 +12,7 @@ interface SidePaneProps {
 interface SidePaneState {};
 
 const mapStateToProps = (state) => ({
-    showpane: state.nodemap.display.show_settings_panel
+    showpane: state.display.show_settings_panel
 })
 
 const mapDispatchToProps = (dispatch) => ({

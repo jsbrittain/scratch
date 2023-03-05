@@ -7,7 +7,7 @@ import App from "./gui/App"
 
 /**
  * Entry point for the application
- */
+ **/
 const root = createRoot(document.getElementById("app"));
 root.render(
   <Provider store={store}>

@@ -34,7 +34,7 @@ class SidePane extends Component<Props, State> {
         className="some-custom-class"
         overlayClassName="some-custom-overlay-class"
         from="left"
-        width="25%"
+        width="33%"
         isOpen={showpane}
         title="Parameters / settings"
         subtitle="Node parameters here"

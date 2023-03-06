@@ -11,7 +11,9 @@ class Header extends Component {
   render() {
     return (
       <>
-      Header
+	  <link href="http://fonts.googleapis.com/css?family=Oswald" rel="stylesheet" type="text/css"/>
+      PhyloFlow
+	  <button className="btn">RUN</button>
       </>
     )
   }

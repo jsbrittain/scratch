@@ -32,16 +32,14 @@ class SidePaneContentComponent extends Component {
 
   render() {
     return (
-		<>
-		  <div>
-		  <p>List of parameters, etc.</p>
-		  <br/>
-		  <p>Code snippet<br/>
-		  <textarea id="Code snippet" name="sidePaneCodeSnippet" {...{rows: 10}} style={{width: "100%"}} ></textarea>
-		  </p>
-		  <button className="btn" style={{float: "right"}}>SAVE AND RELOAD</button>
-		  </div>
-		</>
+	  <div>
+	  <p>List of parameters, etc.</p>
+	  <br/>
+	  <p>Code snippet<br/>
+	  <textarea id="Code snippet" name="sidePaneCodeSnippet" {...{rows: 10}} style={{width: "100%"}} ></textarea>
+	  </p>
+	  <button className="btn" style={{padding: "10px", float: "right"}}>SAVE AND RELOAD</button>
+	  </div>
     );
   }
 }

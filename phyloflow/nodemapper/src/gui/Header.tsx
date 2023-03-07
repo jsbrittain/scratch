@@ -12,8 +12,9 @@ class Header extends Component {
     return (
       <>
 	  <link href="http://fonts.googleapis.com/css?family=Oswald" rel="stylesheet" type="text/css"/>
-      PhyloFlow
+      <div style={{fontSize: 16, marginLeft: 0}}>PhyloFlow
 	  <button className="btn">RUN</button>
+	  </div>
       </>
     )
   }

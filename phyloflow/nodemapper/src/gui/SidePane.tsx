@@ -29,7 +29,6 @@ class SidePane extends Component<Props, State> {
   render() {
     const { showpane } = this.props;
     return (
-      <>
       <ReactSlidingPane
         className="some-custom-class"
         overlayClassName="some-custom-overlay-class"
@@ -45,7 +44,6 @@ class SidePane extends Component<Props, State> {
       >
       <SidePaneContent />
       </ReactSlidingPane>
-      </>
     )
   };
 }

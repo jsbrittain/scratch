@@ -4,3 +4,4 @@ export const nodemapAddNode = createAction("NODEMAP_ADD_NODE");
 export const nodemapViewSettings = createAction("NODEMAP_VIEW_SETTINGS");
 export const nodemapNodeSelected = createAction("NODEMAP_NODE_SELECTED");
 export const nodemapNodeDeselected = createAction("NODEMAP_NODE_DESELECTED");
+export const nodemapSelectNone = createAction("NODEMAP_SELECT_NONE");

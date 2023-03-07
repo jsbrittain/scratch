@@ -33,7 +33,7 @@ class NodeScene {
     const model = new DiagramModel();
     this.engine.setModel(model);
     
-    var node1 = this.addNode('Input', 'rgb(192,255,0)', [400, 100]);
+    var node1 = this.addNode('Input', 'rgb(192,255,0)', [400, 118]);
     node1.addOutPort('out-1');
     node1.addOutPort('out-2');
     node1.addOutPort('out-3');

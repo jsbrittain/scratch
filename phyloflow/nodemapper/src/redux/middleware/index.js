@@ -1,4 +1,4 @@
-import { displayOpenSettings, displayCloseSettings } from '../actions'
+import { displayOpenSettings, displayCloseSettings, nodemapSelectNone } from '../actions'
 
 export function sampleMiddleware({ getState, dispatch }) {
   return function(next) {
@@ -11,6 +11,10 @@ export function sampleMiddleware({ getState, dispatch }) {
 		  }
 		  case "NODEMAP_NODE_DESELECTED": {
 			dispatch(displayCloseSettings());
+			break;
+		  }
+		  case "DISPLAY_CLOSE_SETTINGS": {
+			dispatch(nodemapSelectNone());
 			break;
 		  }
 		  default:

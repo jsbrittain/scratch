@@ -8,6 +8,7 @@ import './NodeManager.css'
 import NodeScene from './NodeScene'
 
 import { nodemapNodeSelected, nodemapNodeDeselected } from '../redux/actions'
+import { DiagramModel } from "@projectstorm/react-diagrams"
 
 interface Props {
   nodeSelected: any,
@@ -36,8 +37,14 @@ class NodeManager extends Component<Props, States> {
 	  selectionChanged: (e) => {
 	    if (e.isSelected) {
 		  this.props.nodeSelected();
+	//var str = JSON.stringify(model.serialize());
+	//model.deserializeModel(JSON.parse(str), this.state.nodeScene.engine);
+	/*var model2 = new DiagramModel();
+	model2.deserializeModel(JSON.parse(str), this.state.nodeScene.engine);
+	this.state.nodeScene.engine.setModel(model2);*/
 		} else {
           this.props.nodeDeselected();
+		  //model.getNodes()[0].setPosition(0,0);
         }
 	  },
 	});

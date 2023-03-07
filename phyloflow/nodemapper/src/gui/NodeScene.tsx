@@ -60,6 +60,16 @@ class NodeScene {
     this.addLink(node2.getPort('out-2'), node4.getPort('in-1'));
     this.addLink(node1.getPort('out-4'), node4.getPort('in-2'));
   }
+  
+  loadModel(str) {
+    var model = new DiagramModel();
+    model.deserializeModel(JSON.parse(str), this.engine);
+    this.engine.setModel(model);
+  }
+  
+  serializeModel() {
+    return JSON.stringify(this.engine.getModel().serialize());
+  }
 }
 
 export default NodeScene;

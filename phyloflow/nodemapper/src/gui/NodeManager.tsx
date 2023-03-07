@@ -5,7 +5,7 @@ import { render } from 'react-dom'
 
 import { BodyWidget } from './BodyWidget'
 import './NodeManager.css'
-import NodeScene from './NodeScene'
+import NodeMapEngine from './NodeMapEngine'
 
 import { nodemapNodeSelected, nodemapNodeDeselected } from '../redux/actions'
 import { DiagramModel } from "@projectstorm/react-diagrams"
@@ -15,43 +15,38 @@ interface Props {
   nodeDeselected: any
 };
 interface States {
-  nodeScene: NodeScene
 };
 
 const mapStateToProps = (state) => ({})
 const mapDispatchToProps = (dispatch) => ({
-  nodeSelected: () => dispatch(nodemapNodeSelected()),
-  nodeDeselected: () => dispatch(nodemapNodeDeselected()),
+  nodeSelected: (payload: any) => dispatch(nodemapNodeSelected(payload)),
+  nodeDeselected: (payload: any) => dispatch(nodemapNodeDeselected(payload)),
 })
 
 class NodeManager extends Component<Props, States> {
+  // Link to singleton instance of nodemap graph engine
+  private nodeMapEngine = NodeMapEngine.Instance;
+  engine = this.nodeMapEngine.engine;
+  
   constructor(props) {
     super(props);
-    this.state = { nodeScene: new NodeScene() }
     // Add listeners, noting the following useful resource:
     // https://github.com/projectstorm/react-diagrams/issues/164
-    let model = this.state.nodeScene.engine.getModel();
-    
+    let model = this.engine.getModel(); 
     // Trigger a redux event from a listener on the first node
-    model.getNodes()[0].registerListener({
-	  selectionChanged: (e) => {
-	    if (e.isSelected) {
-		  this.props.nodeSelected();
-	//var str = JSON.stringify(model.serialize());
-	//model.deserializeModel(JSON.parse(str), this.state.nodeScene.engine);
-	/*var model2 = new DiagramModel();
-	model2.deserializeModel(JSON.parse(str), this.state.nodeScene.engine);
-	this.state.nodeScene.engine.setModel(model2);*/
-		} else {
-          this.props.nodeDeselected();
-		  //model.getNodes()[0].setPosition(0,0);
-        }
-	  },
-	});
+    model.getNodes().forEach(node =>
+      node.registerListener({
+	    selectionChanged: (e) => {
+	      if (e.isSelected) {
+		    this.props.nodeSelected(node.id);
+          }
+	    }
+	  })
+    );
   }
 
   render() {
-    const engine = this.state.nodeScene.engine;
+    const engine = this.engine;
     return (
 	  <div id="nodemanager" style={{width: '100%', height: '100%'}}>
       <BodyWidget engine={engine} />

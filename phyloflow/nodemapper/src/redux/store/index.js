@@ -1,13 +1,14 @@
 import { configureStore, getDefaultMiddleware } from "@reduxjs/toolkit"
 import { nodemapReducer, displayReducer } from "../reducers"
-import { sampleMiddleware } from "../middleware"
+import { displayMiddleware, nodemapMiddleware } from "../middleware"
 
 
 // Middleware layer ===============================================
 const middleware = [
   ...getDefaultMiddleware(),
   // Custom middlewares go here...
-  sampleMiddleware
+  displayMiddleware,
+  nodemapMiddleware
 ];
 
 // Reducers =======================================================

@@ -7,7 +7,8 @@
   vertical-align: middle;
   display: inline-block;
   font-size: 12px;
-  margin-left: 12px;
+  margin-left: 6px;
+  margin-right: 6px;
   border-radius: 4px;
   min-width: 50px;
   min-height: 25px;
@@ -16,5 +17,10 @@
 
 .btn:hover {
   background-color: #04AA6D;
+  color: #DDDDDD;
+}
+
+.btn:active {
+  background-color: #008554;
   color: #DDDDDD;
 }

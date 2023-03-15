@@ -1,12 +1,20 @@
+import React from 'react'
 import NodeMapScene from './NodeMapScene'
 import { useAppSelector } from '../redux/store/hooks'
 import { useAppDispatch } from '../redux/store/hooks'
+import { nodemapConstructFromOutline } from '../redux/actions'
+
 
 export default class NodeMapEngine {
   // Set up a singleton instance of a class
   private static _Instance: NodeMapEngine;
   nodeScene = null;
   engine = null;
+  
+  postData = null
+  setPostData = null
+  responseData = null
+  setResponseData = null
   
   constructor() {
     this.nodeScene = new NodeMapScene();
@@ -39,7 +47,7 @@ export default class NodeMapEngine {
 
   public LoadScene() { 
     const onLoad = (content) => {
-	  this.nodeScene.loadModel(content);
+    this.nodeScene.loadModel(content);
     }
     this.QueryAndLoadTextFile(onLoad)
   }
@@ -49,7 +57,7 @@ export default class NodeMapEngine {
     this.Download('model.json', str);
   }
   
-  public Download(filename, text) {	
+  public Download(filename, text) {  
     var element = document.createElement('a');
     element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
     element.setAttribute('download', filename);
@@ -75,7 +83,6 @@ export default class NodeMapEngine {
   public ImportSnakefile() {
     const onload = (content) => {
       console.log("Import Snakefile")
-      console.log(content)
     }
     this.QueryAndLoadTextFile(onload)
   }

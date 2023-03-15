@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { useEffect } from 'react'
 import { useAppSelector } from '../redux/store/hooks'
 import { useAppDispatch } from '../redux/store/hooks'
-import { displayToggleGraphMoveable } from '../redux/actions/display'
+import { displayToggleGraphMoveable } from '../redux/actions'
+import { nodemapSubmitQuery } from '../redux/actions'
 import NodeMapEngine from './NodeMapEngine'
 import "./Header.css"
 
@@ -27,6 +28,7 @@ function Header() {
   // === Import Snakefile =====================================================
 
   const btnImportSnakefile = () => {
+    dispatch(nodemapSubmitQuery('TEST QUERY'))
     NodeMapEngine.Instance.ImportSnakefile();
   }
   

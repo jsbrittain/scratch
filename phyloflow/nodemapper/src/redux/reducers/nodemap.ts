@@ -3,6 +3,7 @@ import * as action from "../actions"
 
 // State
 const nodemapStateInit = {
+  query: ''  // temp location
 };
 
 // Nodemap
@@ -26,6 +27,15 @@ const nodemapReducer = createReducer(
 	  .addCase(action.nodemapSelectNone, (state, action) => {
 	    // Business logic
 	    console.info("[Reducer] (nodemap)SelectNone");
+      })
+	  .addCase(action.nodemapConstructFromOutline, (state, action) => {
+	    const payload = action.payload
+	    console.info("[Reducer] (nodemap)ConstructFromOutline: ", payload);
+      })
+	  .addCase(action.nodemapSubmitQuery, (state, action) => {
+	    const payload = action.payload
+		state.query = payload
+	    console.info("[Reducer] (nodemap)SubmitQuery: ", payload);
       })
   }
 );

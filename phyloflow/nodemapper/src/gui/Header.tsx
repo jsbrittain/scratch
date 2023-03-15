@@ -14,10 +14,10 @@ class Header extends Component {
       <>
 	  <link href="http://fonts.googleapis.com/css?family=Oswald" rel="stylesheet" type="text/css"/>
       <div style={{fontSize: 16, marginLeft: 0}}>PhyloFlow
-	  <button className="btn" onClick={() => NodeMapEngine.Instance.LoadScene()}>LOAD</button>
-	  <button className="btn" onClick={() => NodeMapEngine.Instance.SaveScene()}>SAVE</button>
-	  <button className="btn" onClick={() => NodeMapEngine.Instance.RunScene()}>RUN</button>
-      <button id="btnLock" className="btn" onClick={() => NodeMapEngine.Instance.ToggleLock()}>LOCK: OFF</button>
+        <button className="btn" onClick={() => NodeMapEngine.Instance.LoadScene()}>LOAD</button>
+	    <button className="btn" onClick={() => NodeMapEngine.Instance.SaveScene()}>SAVE</button>
+	    <button className="btn" >BUILD SNAKEFILE</button>
+        <button id="btnLock" className="btn" onClick={() => NodeMapEngine.Instance.ToggleLock()}>EDIT CODE: OFF</button>
 	  </div>
       </>
     )

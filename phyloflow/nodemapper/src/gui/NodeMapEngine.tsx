@@ -1,4 +1,4 @@
-import NodeScene from './NodeScene'
+import NodeMapScene from './NodeMapScene'
 
 export default class NodeMapEngine {
   // Set up a singleton instance of a class
@@ -8,7 +8,7 @@ export default class NodeMapEngine {
   lock = false;
   
   constructor() {
-    this.nodeScene = new NodeScene();
+    this.nodeScene = new NodeMapScene();
     this.engine = this.nodeScene.engine;
   }
   
@@ -61,8 +61,31 @@ export default class NodeMapEngine {
   public ToggleLock() {
     this.lock = !this.lock;
     if (this.lock)
-	  document.getElementById("btnLock").innerHTML = "LOCK: ON";
+	  document.getElementById("btnLock").innerHTML = "EDIT CODE: ON";
     else
-	  document.getElementById("btnLock").innerHTML = "LOCK: OFF";
+	  document.getElementById("btnLock").innerHTML = "EDIT CODE: OFF";
+  }
+
+  public getNodeById(id: string): any {
+    this.engine.getModel().getNodes().forEach(item => {
+      if (item.options.name === id)
+        return item;
+    });
+    return null
+  }
+
+  public buildSnakefile() {
+  }
+
+  public getCodeSnippet() {
+  }
+
+  public setCodeSnippet() {
+  }
+
+  public getPayload() {
+  }
+
+  public setPayload() {
   }
 }

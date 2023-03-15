@@ -3,7 +3,8 @@ import React from 'react'
 import { Component, StrictMode, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { action } from '@storybook/addon-actions'
-import createEngine, { DiagramModel, DefaultNodeModel, DefaultLinkModel, DiagramEngine } from '@projectstorm/react-diagrams'
+import createEngine, { DiagramModel, DiagramEngine } from '@projectstorm/react-diagrams'
+import { DefaultNodeModel, DefaultLinkModel } from  '../NodeMapComponents'
 import { BodyWidget } from './BodyWidget'
 
 class NodeScene {
@@ -14,7 +15,8 @@ class NodeScene {
   }
 
   addNode(name, color, pos) {
-    var node = new DefaultNodeModel(name, color);
+    var config = JSON.stringify({code: 'code snippet', author: 'jsb'})
+    var node = new DefaultNodeModel(name, color, config);
     node.setPosition(pos[0], pos[1]);
     this.engine.getModel().addNode(node);
     return node;

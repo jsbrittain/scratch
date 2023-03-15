@@ -6,7 +6,7 @@ export function displayMiddleware({ getState, dispatch }) {
 	  
 	  console.debug(action);
 	  switch (action.type) {
-		  case "DISPLAY_CLOSE_SETTINGS": {
+		  case "display/close-settings": {
 			dispatch(nodemapSelectNone());
 			break;
 		  }

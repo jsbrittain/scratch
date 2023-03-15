@@ -4,7 +4,7 @@ import { connect } from 'react-redux'
 
 import './App.css'
 import Header from './Header'
-import NodeManager from './NodeManager'
+import MainPanel from './MainPanel'
 import SidePane from './SidePane'
 
 // Layout for main window, including sliding-pane support
@@ -17,7 +17,7 @@ export default function App() {
     </div>
 
     <div id="main-panel">
-	<NodeManager />
+    <MainPanel />
     </div>
     
 	<div id="side-pane">

@@ -17,7 +17,7 @@ function SidePane() {
       width="33%"
       isOpen={showpane}
       title={title}
-      subtitle="Parameters / settings"
+      subtitle="Placeholder subtitle"
       onRequestClose={() => {
         // triggered on "<" on left top click or on click outside of pane
         dispatch(displayCloseSettings());

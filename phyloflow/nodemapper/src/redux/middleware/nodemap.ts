@@ -1,4 +1,6 @@
-import { displayOpenSettings, displayCloseSettings, displayUpdateCodeSnippet } from '../actions'
+import { displayOpenSettings } from '../actions'
+import { displayCloseSettings } from '../actions'
+import { displayUpdateCodeSnippet } from '../actions'
 import NodeMapEngine from '../../gui/NodeMapEngine' 
 
 export function nodemapMiddleware({ getState, dispatch }) {
@@ -9,13 +11,18 @@ export function nodemapMiddleware({ getState, dispatch }) {
 	  console.log("Middleware: ", action );
 	  switch (action.type) {
           case "nodemap/node-selected": {
-			if (NodeMapEngine.Instance.lock) {
+			const graph_is_moveable = getState().display.graph_is_moveable
+			if (!graph_is_moveable) {
 			  const nodemap = NodeMapEngine.Instance;
 			  const node = nodemap.getNodeById(action.payload.id);
 			  let payload = {}
 			  if (node === null) {
-				console.log("NODE NOT FOUND")
-			    payload = action.payload.id
+				console.debug("Selected node not found in engine: ", action.payload.id)
+			    payload = {
+					id: action.payload.id,
+					name: "ERROR: Failed to find node (" + action.payload.id + ")",
+					codesnippet: "ERROR: Failed to find node (" + action.payload.id + ")",
+				}
 			  } else {
 			    const json = JSON.parse(node.options.extras);
 			    payload = {

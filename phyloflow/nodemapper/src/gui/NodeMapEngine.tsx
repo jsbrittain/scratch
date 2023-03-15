@@ -1,11 +1,12 @@
 import NodeMapScene from './NodeMapScene'
+import { useAppSelector } from '../redux/store/hooks'
+import { useAppDispatch } from '../redux/store/hooks'
 
 export default class NodeMapEngine {
   // Set up a singleton instance of a class
   private static _Instance: NodeMapEngine;
   nodeScene = null;
   engine = null;
-  lock = false;
   
   constructor() {
     this.nodeScene = new NodeMapScene();
@@ -22,29 +23,33 @@ export default class NodeMapEngine {
     });
   }
   
-  public LoadScene() {
+  public QueryAndLoadTextFile(onLoad: Function) {
+    // Opens a file dialog, then executes readerEvent
     var input = document.createElement('input');
     input.type = 'file';
     input.onchange = e => {
       console.log(e);
       var file = (e.target as HTMLInputElement).files[0];
-      
       var reader = new FileReader();
       reader.readAsText(file,'UTF-8');
-      reader.onload = readerEvent => {
-        var content = readerEvent.target.result;
-		this.nodeScene.loadModel(content);
-      }
+      reader.onload = (readerEvent) => onLoad(readerEvent.target.result)
     }
     input.click();
   }
 
-  public SaveScene() {
-    var str = this.nodeScene.serializeModel();
-    this.download('model.json', str);
+  public LoadScene() { 
+    const onLoad = (content) => {
+	  this.nodeScene.loadModel(content);
+    }
+    this.QueryAndLoadTextFile(onLoad)
   }
   
-  public download(filename, text) {	
+  public SaveScene() {
+    var str = this.nodeScene.serializeModel();
+    this.Download('model.json', str);
+  }
+  
+  public Download(filename, text) {	
     var element = document.createElement('a');
     element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
     element.setAttribute('download', filename);
@@ -58,26 +63,38 @@ export default class NodeMapEngine {
     alert("Running the scene isn't supported just yet!");
   }
 
-  public ToggleLock() {
-    this.lock = !this.lock;
-    if (this.lock)
-	  document.getElementById("btnLock").innerHTML = "EDIT CODE: ON";
-    else
-	  document.getElementById("btnLock").innerHTML = "EDIT CODE: OFF";
-  }
-
   public getNodeById(id: string): any {
+    var returnNode = null
     this.engine.getModel().getNodes().forEach(item => {
-      if (item.options.name === id)
-        return item;
+      if (item.options.id === id)
+        returnNode = item;
     });
-    return null
+    return returnNode
   }
 
-  public buildSnakefile() {
+  public ImportSnakefile() {
+    const onload = (content) => {
+      console.log("Import Snakefile")
+      console.log(content)
+    }
+    this.QueryAndLoadTextFile(onload)
   }
 
-  public getCodeSnippet() {
+  public BuildSnakefile() {
+    //
+  }
+
+  public getNodePropertiesAsJSON(node: any): Record<string, any> {
+    return JSON.parse(node.options.extra)
+  }
+  
+  public getNodePropertiesAsStr(node: any): string {
+    return node.options.extra
+  }
+  
+  public getProperty(node: any, prop: string): string {
+    const json = this.getNodePropertiesAsJSON(node)
+    return json[prop]
   }
 
   public setCodeSnippet() {

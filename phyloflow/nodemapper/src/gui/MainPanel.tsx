@@ -1,20 +1,26 @@
 import React from 'react'
-import { Component } from 'react'
-import { render } from 'react-dom'
 import NodeManager from './NodeManager'
 
-class MainPanel extends Component {
-  constructor(props) {
-    super(props);
+function MainPanel() {
+  const [data,setData] = React.useState(null);
+  const requestOptions = {
+    method: 'GET',
+    headers: {'Content-Type': undefined},
   }
+  React.useEffect(() => {
+    fetch('http://127.0.0.1:3001/api', requestOptions)
+      .then((res) => res.json())
+      .then((data) => setData(data.message));
+  }, [])  // run once
 
-  render() {
-    return (
-      <>
-      <NodeManager />
-      </>
-    )
-  }
+  return (
+    <>
+    <p>{!data ? "Loading..." : data}</p>
+    </>
+  )
 }
 
 export default MainPanel;
+
+
+//<NodeManager />

@@ -5,3 +5,5 @@ export const displayCloseSettings = createAction("display/close-settings");
 export const displayToggleSettingsVisibility = createAction("display/toggle-settings-visibility");
 //export const displayUpdateCodeSnippet = createAction<Record<string,any>>("display/update-codesnippet")
 export const displayUpdateCodeSnippet = createAction<string>("display/update-codesnippet")
+export const displaySaveCodeSnippet = createAction<string>("display/save-codesnippet")
+export const displayToggleGraphMoveable = createAction("display/toggle-graph-moveable")

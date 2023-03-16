@@ -13,38 +13,32 @@ function Header() {
   const graph_is_moveable = useAppSelector(state => state.display.graph_is_moveable);
   const dispatch = useAppDispatch();
 
-  // === Load Scene ===========================================================
-
+  // Load Scene
   const btnLoadScene = () => {
     NodeMapEngine.Instance.LoadScene()
   }
   
-  // === Save Scene ===========================================================
-  
+  // Save Scene
   const btnSaveScene = () => {
     NodeMapEngine.Instance.SaveScene()
   }
   
-  // === Import Snakefile =====================================================
-
+  // Import Snakefile
   const btnImportSnakefile = () => {
     dispatch(nodemapSubmitQuery('TEST QUERY'))
     NodeMapEngine.Instance.ImportSnakefile();
   }
   
-  // === Build Snakefile ======================================================
-
+  // Build Snakefile
   const btnBuildSnakefile = () => {
     NodeMapEngine.Instance.BuildSnakefile();
   }
-
-  // === Toggle graph moveability =============================================
 
   // Dispatch action to toggle graph moveability state...
   const btnToggleLock = () => {
     dispatch(displayToggleGraphMoveable())
   }
-  // ... then react to state change by updating button text
+  // ... then react to state change (once it is made) by updating button text
   useEffect(() => {
     if (graph_is_moveable)
       setTextEditGraph("EDIT GRAPH: ON")
@@ -52,8 +46,7 @@ function Header() {
       setTextEditGraph("EDIT GRAPH: OFF")
   }, [graph_is_moveable])
 
-  // ==========================================================================
-  
+  // render
   return (
     <>
     <link href="http://fonts.googleapis.com/css?family=Oswald" rel="stylesheet" type="text/css"/>

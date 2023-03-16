@@ -2,4 +2,11 @@
 
 set -euox pipefail
 
-# TODO: Write this script - DEV version - hot reload
+pushd flask
+./run.sh &
+
+popd
+pushd nodemapper
+./run.sh &
+popd
+

@@ -9,11 +9,17 @@ import { DiagramModel } from "@projectstorm/react-diagrams"
 
 import './NodeManager.css'
 
+// TODO: Replace with webpack proxy (problems getting this to work)
+const API_ENDPOINT = "http://127.0.0.1:5001/api"
+
+
+
 function NodeManager() {
   // Link to singleton instance of nodemap graph engine
   const nodeMapEngine = NodeMapEngine.Instance;
   const engine = nodeMapEngine.engine;
-  const model = engine.getModel(); 
+  const model = engine.getModel();
+  
   // Add listeners, noting the following useful resource:
   // https://github.com/projectstorm/react-diagrams/issues/164
   const dispatch = useAppDispatch();
@@ -29,38 +35,38 @@ function NodeManager() {
       }
     })
   );
-
+  
   // POST request handler [refactor out of this function later]
   const query = useAppSelector(state => state.nodemap.query);
   const [responseData, setResponseData] = React.useState('')
-    async function getData() {
-      const postRequestOptions = {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json;charset=UTF-8',
-        },
-        body: JSON.stringify({
-          query: 'tokenize',
-          variables: {
-            format: 'Snakefile',
-            content: query
-          }
-        })
-      }
-    fetch('http://127.0.0.1:3001/tokenize', postRequestOptions)
-      .then(response => {
-        if (response.ok) {
-          return response.json()
+  async function getData() {
+    const postRequestOptions = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json;charset=UTF-8',
+      },
+      body: JSON.stringify({
+        query: 'tokenize',
+        variables: {
+          format: 'Snakefile',
+          content: query
         }
-        throw response
       })
-      .then(data => {
-        setResponseData(data);
-        console.info("Got response: ", data); 
-      })
-      .catch(error => {
-        console.error("Error during query: ", error);
-      })
+    }
+    fetch(API_ENDPOINT + '/post', postRequestOptions)
+    .then(response => {
+      if (response.ok) {
+      return response.json()
+      }
+      throw response
+    })
+    .then(data => {
+      setResponseData(data);
+      console.info("Got response: ", data); 
+    })
+    .catch(error => {
+      console.error("Error during query: ", error);
+    })
   }
   React.useEffect(() => {
     getData()

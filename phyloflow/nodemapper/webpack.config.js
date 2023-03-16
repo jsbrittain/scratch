@@ -55,7 +55,8 @@ module.exports = {
 		client: {
 			overlay: true
 		},
+		port: 5001,
 		hot: false,
-		compress: true
-	}
+		compress: true,
+	},
 };

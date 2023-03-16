@@ -4,17 +4,11 @@ import { useAppSelector } from '../redux/store/hooks'
 import { useAppDispatch } from '../redux/store/hooks'
 import { nodemapConstructFromOutline } from '../redux/actions'
 
-
 export default class NodeMapEngine {
   // Set up a singleton instance of a class
   private static _Instance: NodeMapEngine;
   nodeScene = null;
   engine = null;
-  
-  postData = null
-  setPostData = null
-  responseData = null
-  setResponseData = null
   
   constructor() {
     this.nodeScene = new NodeMapScene();

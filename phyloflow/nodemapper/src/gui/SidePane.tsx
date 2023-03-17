@@ -1,4 +1,6 @@
 import React from 'react'
+import { useState } from 'react'
+import { useEffect } from 'react'
 import { ReactSlidingPane } from 'react-sliding-pane'
 import { displayCloseSettings } from '../redux/actions'
 import SidePaneContent from './SidePaneContent'
@@ -7,7 +9,18 @@ import './SidePane.css'
 
 function SidePane() {
   const showpane = useAppSelector(state => state.display.show_settings_panel);
-  const title = useAppSelector(state => state.display.settings_title);
+  const nodeinfo = useAppSelector(state => state.display.nodeinfo);
+  const [title, setTitle] = useState("")
+  const [name, setName] = useState("")
+  
+  useEffect(() => {
+    if (nodeinfo !== "") {
+      const json = JSON.parse(nodeinfo)
+      setTitle(json.name)
+      setName(json.name)
+    }
+  }, [nodeinfo])
+
   const dispatch = useAppDispatch();
   return (
     <ReactSlidingPane
@@ -17,7 +30,7 @@ function SidePane() {
       width="33%"
       isOpen={showpane}
       title={title}
-      subtitle="Placeholder subtitle"
+      subtitle={name}
       onRequestClose={() => {
         // triggered on "<" on left top click or on click outside of pane
         dispatch(displayCloseSettings());

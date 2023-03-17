@@ -1,4 +1,3 @@
-// Imports for panel-manager
 import React from 'react'
 import { Component, StrictMode, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -14,15 +13,20 @@ class NodeScene {
     this.InitializeScene();
   }
 
-  addNode(name, color, pos) {
-    var config = JSON.stringify({code: 'code snippet', author: 'jsb'})
-    var node = new DefaultNodeModel(name, color, config);
+  addNode(name: string, color: string, pos: Array<number>, config: JSON = {} as JSON) {
+    const config_str = JSON.stringify(config)
+    const node = new DefaultNodeModel(name, color, config_str);
     node.setPosition(pos[0], pos[1]);
     this.engine.getModel().addNode(node);
     return node;
   }
 
-  addLink(port_from, port_to) {
+  addNodeWithCode(name: string, color: string, pos: Array<number>, code: string) {
+    const config = JSON.parse(JSON.stringify({ 'code': code }));
+    return this.addNode(name, color, pos, config);
+  }
+
+  addLink(port_from: any, port_to: any) {
     const link = new DefaultLinkModel();
     link.setSourcePort(port_from);
     link.setTargetPort(port_to);
@@ -71,6 +75,26 @@ class NodeScene {
   
   serializeModel() {
     return JSON.stringify(this.engine.getModel().serialize());
+  }
+  
+  buildMapWithSnippets(data: JSON) {
+    var model = new DiagramModel();
+    this.engine.setModel(model);
+    const pos = [50, 50]
+    data['block'].forEach((block) => {
+      var colstr = 'rgb(0,192,255)'
+      if (block['type'] == 'config') {
+        colstr = 'rgb(192,0,255)'
+      }
+      var node = this.addNode(block['name'], colstr, pos, block);
+      console.log(node)
+      pos[0] += 150
+      // add ports
+      if (block['type'] == 'rule') {
+	    node.addInPort('in-1')
+	    node.addOutPort('out-1')
+      }
+    });
   }
 }
 

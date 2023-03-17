@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useAppSelector } from '../redux/store/hooks'
 import { useAppDispatch } from '../redux/store/hooks'
 import { displayToggleGraphMoveable } from '../redux/actions'
-import { nodemapSubmitQuery } from '../redux/actions'
+import { nodemapImportSnakefile } from '../redux/actions'
 import NodeMapEngine from './NodeMapEngine'
 import "./Header.css"
 
@@ -25,13 +25,12 @@ function Header() {
   
   // Import Snakefile
   const btnImportSnakefile = () => {
-    dispatch(nodemapSubmitQuery('TEST QUERY'))
-    NodeMapEngine.Instance.ImportSnakefile();
+    dispatch(nodemapImportSnakefile())
   }
   
   // Build Snakefile
   const btnBuildSnakefile = () => {
-    NodeMapEngine.Instance.BuildSnakefile();
+    //
   }
 
   // Dispatch action to toggle graph moveability state...
@@ -54,7 +53,7 @@ function Header() {
       <button className="btn" onClick={btnLoadScene}>LOAD</button>
       <button className="btn" onClick={btnSaveScene}>SAVE</button>
       <button className="btn" onClick={btnImportSnakefile}>IMPORT SNAKEFILE</button>
-      <button className="btn" >BUILD SNAKEFILE</button>
+      <button className="btn" onClick={btnBuildSnakefile}>BUILD SNAKEFILE</button>
       <button className="btn" onClick={btnToggleLock}>{textEditGraph}</button>
     </div>
     </>

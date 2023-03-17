@@ -30,6 +30,7 @@
     "react-dom": "^18.2.0",
     "react-redux": "^8.0.5",
     "react-sliding-pane": "^7.3.0",
+    "redux-devtools-extension": "^2.13.9",
     "source-map-loader": "^4.0.1",
     "style-loader": "^3.3.1",
     "ts-loader": "^9.4.2",

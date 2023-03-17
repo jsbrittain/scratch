@@ -18,7 +18,6 @@ const nodemapReducer = createReducer(
 	  .addCase(action.nodemapNodeSelected, (state, action) => {
         // Action intercepted in middleware to control display
 	    console.info("[Reducer] (nodemap)NodeSelected", state, action);
-  	    //var config = JSON.parse(node.options.extras);
       })
 	  .addCase(action.nodemapNodeDeselected, (state, action) => {
         // Action intercepted in middleware to control display
@@ -33,9 +32,11 @@ const nodemapReducer = createReducer(
 	    console.info("[Reducer] (nodemap)ConstructFromOutline: ", payload);
       })
 	  .addCase(action.nodemapSubmitQuery, (state, action) => {
-	    const payload = action.payload
-		state.query = payload
-	    console.info("[Reducer] (nodemap)SubmitQuery: ", payload);
+		state.query = action.payload
+	    console.info("[Reducer] (nodemap)SubmitQuery");
+      })
+	  .addCase(action.nodemapImportSnakefile, (state, action) => {
+	    console.info("[Reducer] (nodemap)ImportSnakefile");
       })
   }
 );

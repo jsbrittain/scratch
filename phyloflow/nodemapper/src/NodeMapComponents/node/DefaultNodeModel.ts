@@ -16,14 +16,14 @@ export class DefaultNodeModel extends NodeModel<DefaultNodeModelGenerics> {
 	protected portsIn: DefaultPortModel[];
 	protected portsOut: DefaultPortModel[];
 
-	constructor(name: string, color: string, codesnippet: string);
+	constructor(name: string, color: string, userconfig: string);
 	constructor(options?: DefaultNodeModelOptions);
-	constructor(options: any = {}, color?: string, codesnippet?: string) {
+	constructor(options: any = {}, color?: string, userconfig?: string) {
 		if (typeof options === 'string') {
 			options = {
 				name: options,
 				color: color,
-				extras: codesnippet,
+				extras: userconfig,
 			};
 		}
 		super({

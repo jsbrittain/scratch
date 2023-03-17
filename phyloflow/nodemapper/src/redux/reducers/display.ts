@@ -2,10 +2,9 @@ import { createReducer } from "@reduxjs/toolkit"
 import * as action from "../actions"
 
 const displayStateInit = {
-  show_settings_panel: false,
-  settings_title: "",
-  codesnippet: "",
   graph_is_moveable: false,
+  show_settings_panel: false,
+  nodeinfo: "",
 };
 
 // Display
@@ -25,10 +24,8 @@ const displayReducer = createReducer(
         state.show_settings_panel = !state.show_settings_panel;
 	    console.info("[Reducer] (display)ToggleSettingsVisibility", state, action);
       })
-      .addCase(action.displayUpdateCodeSnippet, (state, action) => {
-		const payload = JSON.parse(action.payload)
-		state.settings_title = payload.name;
-        state.codesnippet = payload.codesnippet;
+      .addCase(action.displayUpdateNodeInfo, (state, action) => {
+		state.nodeinfo = action.payload
 	    console.info("[Reducer] (display)UpdateCodeSnippet", state, action);
       })
       .addCase(action.displaySaveCodeSnippet, (state, action) => {

@@ -6,6 +6,7 @@ export const nodemapNodeSelected = createAction<Record<string, any> | undefined>
 export const nodemapNodeDeselected = createAction("nodemap/node-deselected");
 export const nodemapSelectNone = createAction("nodemap/select-none");
 export const nodemapConstructFromOutline = createAction("nodemap/construct-from-outline")
+export const nodemapImportSnakefile = createAction("nodemap/import-snakefile")
 
 // refactor out later
 export const nodemapSubmitQuery = createAction<string>("nodemap/submit-query")

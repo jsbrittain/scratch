@@ -1,24 +1,38 @@
 import React from 'react'
+import { useState, useEffect } from 'react'
 import { useAppSelector } from '../redux/store/hooks'
 import { useAppDispatch } from '../redux/store/hooks'
-import { displayUpdateCodeSnippet } from '../redux/actions/display'
+import { displayUpdateNodeInfo } from '../redux/actions/display'
 import { useSelector } from 'react-redux'
 
 import "./SidePaneContent.css"
 
 function SidePaneContentComponent() {
-  const codesnippet = useAppSelector(state => state.display.codesnippet);
+  const nodeinfo = useAppSelector(state => state.display.nodeinfo);
   const dispatch = useAppDispatch();
 
   const updateCodeSnippet = () => {
 	// TODO: sort out payload
 	const payload = ""
-	dispatch(displayUpdateCodeSnippet(payload))
+	dispatch(displayUpdateNodeInfo(payload))
   }
+
+  const [title, setTitle] = useState("")
+  const [name, setName] = useState("")
+  const [codesnippet, setCodesnippet] = useState("")
+  
+  useEffect(() => {
+    if (nodeinfo !== "") {
+      const json = JSON.parse(nodeinfo)
+      setTitle(json.name)
+      setName(json.name)
+      setCodesnippet(json.code)
+    }
+  }, [nodeinfo])
 
   return (
     <div>
-    <p>Description, environment, etc.</p>
+    <p>Description, configuration, environment, etc.</p>
     <br/>
     <p>Code snippet<br/>
     <textarea

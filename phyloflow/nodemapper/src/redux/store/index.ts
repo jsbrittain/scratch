@@ -1,5 +1,4 @@
 import { configureStore } from '@reduxjs/toolkit'
-//import middleware from '../middleware'
 import { nodemapMiddleware } from '../middleware/nodemap'
 import { displayMiddleware } from '../middleware/display'
 import rootReducer from '../reducers'

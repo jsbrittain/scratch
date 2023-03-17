@@ -1,6 +1,7 @@
+import { nodemapSubmitQuery } from '../actions'
 import { displayOpenSettings } from '../actions'
 import { displayCloseSettings } from '../actions'
-import { displayUpdateCodeSnippet } from '../actions'
+import { displayUpdateNodeInfo } from '../actions'
 import NodeMapEngine from '../../gui/NodeMapEngine' 
 
 export function nodemapMiddleware({ getState, dispatch }) {
@@ -10,7 +11,8 @@ export function nodemapMiddleware({ getState, dispatch }) {
 	  //       .payload
 	  console.log("Middleware: ", action );
 	  switch (action.type) {
-          case "nodemap/node-selected": {
+
+		  case "nodemap/node-selected": {
 			const graph_is_moveable = getState().display.graph_is_moveable
 			if (!graph_is_moveable) {
 			  const nodemap = NodeMapEngine.Instance;
@@ -21,31 +23,43 @@ export function nodemapMiddleware({ getState, dispatch }) {
 			    payload = {
 					id: action.payload.id,
 					name: "ERROR: Failed to find node (" + action.payload.id + ")",
-					codesnippet: "ERROR: Failed to find node (" + action.payload.id + ")",
+					type: "ERROR: Failed to find node (" + action.payload.id + ")",
+					code: "ERROR: Failed to find node (" + action.payload.id + ")",
 				}
 			  } else {
 			    const json = JSON.parse(node.options.extras);
 			    payload = {
 			      id: action.payload.id,
 			  	  name: node.options.name,
-				  codesnippet: json.codesnippet,
+			  	  type: node.options.type,
+				  code: json.code,
 			    }
 			  }
-			  dispatch(displayUpdateCodeSnippet(JSON.stringify(payload)));
+			  dispatch(displayUpdateNodeInfo(JSON.stringify(payload)));
 			  dispatch(displayOpenSettings());
 			}
 			break;
 		  }
+
 		  case "nodemap/node-deselected": {
 			dispatch(displayCloseSettings());
 			break;
 		  }
+
 		  case "nodemap/select-none": {
 			// Link to singleton instance of nodemap graph engine
 			const nodemap = NodeMapEngine.Instance;
 			nodemap.NodesSelectNone();
             break;
 		  }
+
+		  case "nodemap/import-snakefile": {
+			  QueryAndLoadTextFile((content) => {
+				  dispatch(nodemapSubmitQuery(content))
+			  });
+			  break;
+		  }
+
 		  default:
 			break;
 	  }
@@ -53,4 +67,18 @@ export function nodemapMiddleware({ getState, dispatch }) {
 	  return next(action)
 	}
   }
+}
+
+function QueryAndLoadTextFile(onLoad: Function) {
+// Opens a file dialog, then executes readerEvent
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.onchange = e => {
+    console.log(e);
+    var file = (e.target as HTMLInputElement).files[0];
+    var reader = new FileReader();
+    reader.readAsText(file,'UTF-8');
+    reader.onload = (readerEvent) => onLoad(readerEvent.target.result)
+  }
+  input.click();
 }

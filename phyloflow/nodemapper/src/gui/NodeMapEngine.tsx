@@ -41,7 +41,7 @@ export default class NodeMapEngine {
 
   public LoadScene() { 
     const onLoad = (content) => {
-    this.nodeScene.loadModel(content);
+	    this.nodeScene.loadModel(content);
     }
     this.QueryAndLoadTextFile(onLoad)
   }
@@ -74,17 +74,6 @@ export default class NodeMapEngine {
     return returnNode
   }
 
-  public ImportSnakefile() {
-    const onload = (content) => {
-      console.log("Import Snakefile")
-    }
-    this.QueryAndLoadTextFile(onload)
-  }
-
-  public BuildSnakefile() {
-    //
-  }
-
   public getNodePropertiesAsJSON(node: any): Record<string, any> {
     return JSON.parse(node.options.extra)
   }
@@ -97,13 +86,8 @@ export default class NodeMapEngine {
     const json = this.getNodePropertiesAsJSON(node)
     return json[prop]
   }
-
-  public setCodeSnippet() {
-  }
-
-  public getPayload() {
-  }
-
-  public setPayload() {
+  
+  public ConstructMapFromBlocks(data: JSON) {
+    this.nodeScene.buildMapWithSnippets(data);
   }
 }

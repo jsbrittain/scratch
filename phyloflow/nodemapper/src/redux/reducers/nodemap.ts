@@ -3,7 +3,8 @@ import * as action from "../actions"
 
 // State
 const nodemapStateInit = {
-  query: ''  // temp location
+  serialize: '',
+  query: {}  // temp location
 };
 
 // Nodemap
@@ -27,16 +28,19 @@ const nodemapReducer = createReducer(
 	    // Business logic
 	    console.info("[Reducer] (nodemap)SelectNone");
       })
-	  .addCase(action.nodemapConstructFromOutline, (state, action) => {
-	    const payload = action.payload
-	    console.info("[Reducer] (nodemap)ConstructFromOutline: ", payload);
-      })
 	  .addCase(action.nodemapSubmitQuery, (state, action) => {
 		state.query = action.payload
 	    console.info("[Reducer] (nodemap)SubmitQuery");
       })
 	  .addCase(action.nodemapImportSnakefile, (state, action) => {
 	    console.info("[Reducer] (nodemap)ImportSnakefile");
+      })
+	  .addCase(action.nodemapBuildSnakefile, (state, action) => {
+	    console.info("[Reducer] (nodemap)BuildSnakefile");
+      })
+	  .addCase(action.nodemapStoreMap, (state, action) => {
+	    state.serialize = action.payload
+	    console.info("[Reducer] (nodemap)StoreMap");
       })
   }
 );

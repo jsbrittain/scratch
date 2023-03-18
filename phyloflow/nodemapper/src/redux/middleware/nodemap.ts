@@ -31,8 +31,8 @@ export function nodemapMiddleware({ getState, dispatch }) {
 			    payload = {
 			      id: action.payload.id,
 			  	  name: node.options.name,
-			  	  type: node.options.type,
-				  code: json.code,
+			  	  type: json.type,
+				  code: json.content,
 			    }
 			  }
 			  dispatch(displayUpdateNodeInfo(JSON.stringify(payload)));
@@ -55,8 +55,27 @@ export function nodemapMiddleware({ getState, dispatch }) {
 
 		  case "nodemap/import-snakefile": {
 			  QueryAndLoadTextFile((content) => {
-				  dispatch(nodemapSubmitQuery(content))
+				  const query: Record<string, any> = {
+					  'query': 'tokenize',
+					  'data': {
+						  'format': 'Snakefile',
+						  'content': content
+					  }
+				  }
+				  dispatch(nodemapSubmitQuery(query))
 			  });
+			  break;
+		  }
+
+		  case "nodemap/build-snakefile": {
+			  const query: Record<string, any> = {
+				  'query': 'build',
+				  'data': {
+					  'format': 'Snakefile',
+					  'content': getState().nodemap.serialize
+				  }
+			  }
+			  dispatch(nodemapSubmitQuery(query))
 			  break;
 		  }
 

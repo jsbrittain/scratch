@@ -1,12 +1,10 @@
 import tokenize
 import io
-import json
 from typing import List, Dict
-import logging
 
 
-def Snakefile_SplitByRules(content: str) -> str:
-    ''' Tokenize Snakefile, split into 'rules', return separated'''
+def Snakefile_SplitByRules(content: str) -> dict:
+    '''Tokenize Snakefile, split into 'rules', return as dict list of rules'''
     # Tokenize input, splitting chunks by 'rule' statement
     result: List = [[]]
     chunk = 0
@@ -22,9 +20,9 @@ def Snakefile_SplitByRules(content: str) -> str:
     rules: Dict = {'block': []}
     for [ix, r] in enumerate(result):
         # stringify code block
-        code = tokenize.untokenize(r)
-        if isinstance(code, bytes):  # if byte string, decode
-            code = code.decode('utf-8')
+        content = tokenize.untokenize(r)
+        if isinstance(content, bytes):  # if byte string, decode
+            content = content.decode('utf-8')
         # derive rule name
         if r[0][1] == 'rule':
             blocktype = 'rule'
@@ -38,8 +36,16 @@ def Snakefile_SplitByRules(content: str) -> str:
         block = {
             'name': name,
             'type': blocktype,
-            'code': code,
+            'content': content,
         }
         rules['block'].append(block)
 
-    return json.dumps(rules)
+    return rules
+
+
+def Snakefile_Build(data: dict) -> str:
+    '''Build Snakefile out of structured [dict] data'''
+    contents = ''
+    for block in data['block']:
+        contents += block['content'] + '\n'
+    return contents

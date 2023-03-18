@@ -5,6 +5,7 @@ import { useAppSelector } from '../redux/store/hooks'
 import { useAppDispatch } from '../redux/store/hooks'
 import { displayToggleGraphMoveable } from '../redux/actions'
 import { nodemapImportSnakefile } from '../redux/actions'
+import { nodemapBuildSnakefile } from '../redux/actions'
 import NodeMapEngine from './NodeMapEngine'
 import "./Header.css"
 
@@ -30,7 +31,7 @@ function Header() {
   
   // Build Snakefile
   const btnBuildSnakefile = () => {
-    //
+    dispatch(nodemapBuildSnakefile())
   }
 
   // Dispatch action to toggle graph moveability state...

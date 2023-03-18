@@ -11,13 +11,13 @@ function SidePane() {
   const showpane = useAppSelector(state => state.display.show_settings_panel);
   const nodeinfo = useAppSelector(state => state.display.nodeinfo);
   const [title, setTitle] = useState("")
-  const [name, setName] = useState("")
+  const [blocktype, setBlocktype] = useState("")
   
   useEffect(() => {
     if (nodeinfo !== "") {
       const json = JSON.parse(nodeinfo)
       setTitle(json.name)
-      setName(json.name)
+      setBlocktype(json.type)
     }
   }, [nodeinfo])
 
@@ -30,7 +30,7 @@ function SidePane() {
       width="33%"
       isOpen={showpane}
       title={title}
-      subtitle={name}
+      subtitle={blocktype}
       onRequestClose={() => {
         // triggered on "<" on left top click or on click outside of pane
         dispatch(displayCloseSettings());

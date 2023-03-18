@@ -2,7 +2,6 @@ import React from 'react'
 import NodeMapScene from './NodeMapScene'
 import { useAppSelector } from '../redux/store/hooks'
 import { useAppDispatch } from '../redux/store/hooks'
-import { nodemapConstructFromOutline } from '../redux/actions'
 
 export default class NodeMapEngine {
   // Set up a singleton instance of a class

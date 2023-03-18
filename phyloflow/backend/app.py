@@ -3,6 +3,7 @@ from flask import request
 from flask import Response
 from flask_cors import CORS
 from flask_cors import cross_origin
+import json
 import events
 
 app = Flask(__name__)
@@ -16,13 +17,21 @@ def post():
         app.logger.debug(f'POST request: {request.json}')
         match request.json['query']:
             case 'tokenize':
-                data = events.Tokenize(request.json['data'])
+                data = {
+                    'query': request.json['query'],
+                    'body': json.dumps(events.Tokenize(request.json['data']))}
+            case 'build':
+                data = {
+                    'query': request.json['query'],
+                    'body': events.Build(request.json['data'])}
             case _:
-                return Response(f"Query not supported: {request.json['query']}", status=400)
+                return Response(
+                    f"Query not supported: {request.json['query']}",
+                    status=400)
     except TypeError as err:
-        print(err)
+        app.logger.error(err)
         return Response('Server error', status=500)
-    return data
+    return json.dumps(data)
 
 
 @app.route('/')

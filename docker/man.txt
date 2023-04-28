@@ -1,11 +1,21 @@
 
+--- Install runs with the following changes
+
 + CMakeBuilds.py:91
 "-DCMAKE_PREFIX_PATH=/home/linuxbrew/.linuxbrew/opt/openblas;/home/linuxbrew/.linuxbrew/opt/suite-sparse;/home/linuxbrew/.linuxbrew/opt/sundials"
 
 // Required, even with above
 export SUNDIALS_INST="$(brew --prefix sundials)"
 
+---
 
+Sundials installs if SUNDIALS_INST and SUNDIALS_ROOT are specified,
+but SuiteSparse then complains (missing BLAS_FOUND, SUITESPARSE_INCLUDE_DIRS, SUITESPARSE_LIBRARY)
 
-python3 -m tox -e dev
+--- Install runs with the following changes
+
+export CMAKE_PREFIX_PATH="$(brew --prefix)"
+export SUNDIALS_INST="$(brew --prefix sundials)"
+
+---
 

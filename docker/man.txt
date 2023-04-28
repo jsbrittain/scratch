@@ -1,0 +1,11 @@
+
++ CMakeBuilds.py:91
+"-DCMAKE_PREFIX_PATH=/home/linuxbrew/.linuxbrew/opt/openblas;/home/linuxbrew/.linuxbrew/opt/suite-sparse;/home/linuxbrew/.linuxbrew/opt/sundials"
+
+// Required, even with above
+export SUNDIALS_INST="$(brew --prefix sundials)"
+
+
+
+python3 -m tox -e dev
+

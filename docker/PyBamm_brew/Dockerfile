@@ -15,3 +15,5 @@ WORKDIR /home/linuxbrew/PyBaMM
 RUN git clone https://github.com/pybind/pybind11.git
 
 RUN brew install vim
+
+#RUN python3 -m tox -e dev

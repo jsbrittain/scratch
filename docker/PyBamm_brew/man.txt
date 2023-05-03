@@ -19,3 +19,6 @@ export SUNDIALS_INST="$(brew --prefix sundials)"
 
 ---
 
+For pybamm-requires:
+
+export PATH=$PATH:"$(brew --prefix openblas)/lib"

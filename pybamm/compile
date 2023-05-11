@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+source .tox/dev/bin/activate
+rm pybamm/solvers/idaklu.*.so
+rm -rf build/*
+python compile.py
+cd build
+cmake --build .
+mv idaklu* ../pybamm/solvers/
+
+cd ..
+python issues/issue-2645-parallel-vectors/test.py

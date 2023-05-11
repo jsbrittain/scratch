@@ -1,0 +1,41 @@
+NVECTOR_SERIAL; NVECTOR_PARALLEL; 
+
+nvector/nvector_serial.h
+Imported in:
+pyamm/solvers/c_solvers/idaklu/common.hpp
+
+yy (and others) declared as N_Vector yy; in casadi_solver.hpp
+yy (and others) initialised as N_VNew_Serial in casadi_solver.cpp
+
+def:
+N_Vector N_VNew_Serial(sunindextype vec_length, SUNContext sunctx)
+N_Vector N_VNew_Parallel(MPI_Comm comm, sunindextype local_length, sunindextype global_length, SUNContext sunctx)
+
+struct _N_VectorContent_Serial {
+   sunindextype length;
+   booleantype own_data;
+   realtype *data;
+};
+struct _N_VectorContent_Parallel {
+   sunindextype local_length;
+   sunindextype global_length;
+   booleantype own_data;
+   realtype *data;
+   MPI_Comm comm;
+};
+
+Using IDA - Step-by-step walkthrough:
+https://sundials.readthedocs.io/en/latest/ida/Usage/index.html
+First step: MPI_Init
+Last step: (after destroying objects) MPI_Finalize
+
+From pybamm/build
+cmake .. && cmake --build .
+
+CMake Sundials installer options:
+ENABLE_MPI
+MPI_C_COMPILER
+MPI_CXX_COMPILER
+
+Monkshood
+g++ -o out idaklu.cpp idaklu/* -I/home/jsb/.local/include -I/home/jsb/downloads/openmpi-4.1.5/ompi/include -I/home/jsb/repos/jsbrittain/PyBaMM/.tox/dev/lib/python3.10/site-packages/casadi/include -I/home/jsb/repos/jsbrittain/PyBaMM/install_KLU_Sundials/sundials-6.5.0/include -I/home/jsb/repos/jsbrittain/PyBaMM/pybind11/include -I/usr/include/python3.9

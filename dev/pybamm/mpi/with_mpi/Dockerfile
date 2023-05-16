@@ -5,8 +5,7 @@ RUN apt-get -y update && \
     apt-get -y update && \
     apt-get install -y software-properties-common
 RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install zsh tmux vim python3 python3-dev python3-distutils libopenblas-dev gcc gfortran curl make cmake git build-essential texlive-latex-recommended texlive-latex-extra
-RUN apt-get -y install dvipng graphviz tree sudo
-RUN apt-get -y install mpich libblas-dev liblapack-dev
+RUN apt-get -y install dvipng graphviz tree sudo mpich libblas-dev liblapack-dev pkg-config
 
 RUN useradd -rm -d /home/jsb -s /bin/zsh -G sudo jsb
 RUN echo 'jsb:jsb' | chpasswd

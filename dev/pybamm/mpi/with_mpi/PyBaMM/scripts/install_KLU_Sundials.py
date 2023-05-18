@@ -128,6 +128,9 @@ sundials_src = "../sundials-{}".format(sundials_version)
 print("-" * 10, "Running CMake prepare", "-" * 40)
 subprocess.run(["cmake", sundials_src] + cmake_args, cwd=build_dir)
 
+# Link GK/Metis/ParMetis libraries manually
+subprocess.run(os.path.join(pybamm_dir, 'scripts')+'/fix_superludist_install.sh', cwd=build_dir)
+
 print("-" * 10, "Building the sundials", "-" * 40)
 make_cmd = ["make", "install"]
 subprocess.run(make_cmd, cwd=build_dir)

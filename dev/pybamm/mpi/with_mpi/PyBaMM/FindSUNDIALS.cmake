@@ -50,8 +50,10 @@ set(SUNDIALS_WANT_COMPONENTS
   sundials_sunlinsoldense
   sundials_sunlinsolspbcgs
   sundials_sunlinsollapackdense
+  sundials_sunlinsolsuperludist
   sundials_sunmatrixsparse
   sundials_nvecserial
+  sundials_nvecparallel
   sundials_nvecopenmp
   )
 

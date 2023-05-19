@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+source .tox/dev/bin/activate
+rm pybamm/solvers/idaklu.*.so
+rm -rf build/*
+python compile.py
+cd build
+cmake --build .
+mv idaklu* ../pybamm/solvers/
+
+cd ..
+python test.py > issue2645.log 2> issue2645.err
+
+cat issue2645.err
+cat issue2645.log

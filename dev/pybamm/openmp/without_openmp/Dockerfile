@@ -22,7 +22,13 @@ RUN python3 -m pip install "tox<4"
 
 RUN git clone https://github.com/jsbrittain/PyBaMM.git
 WORKDIR /home/jsb/PyBaMM
-RUN git checkout develop
 
-RUN python3 -m tox -e pybamm-requires
-RUN python3 -m tox -e dev
+# Install from pre-openmp commit
+#RUN git pull
+#RUN git checkout 7c9bcfb
+#RUN python3 -m tox -e pybamm-requires
+#RUN python3 -m tox -e dev
+
+# Update source code (without reinstall)
+#RUN git checkout develop
+#COPY --chown=jsb:jsb ./PyBaMM/./ .

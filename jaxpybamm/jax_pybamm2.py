@@ -2,7 +2,6 @@ import pybamm
 import numpy as np
 import scipy
 from functools import cache
-from itertools import repeat
 import jax
 import logging
 from jax import lax
@@ -46,18 +45,12 @@ class logger:
 
 
 logger.setLevel(logger.NONE)
+# logger.setLevel(logger.DEBUG)
 
-num_inputs = 2
-if num_inputs == 1:
-    inputs = {
-        'Current function [A]': 0.222,
-    }
-elif num_inputs == 2:
-    inputs = {
-        'Current function [A]': 0.222,
-        'Separator porosity': 0.3,
-    }
-inputs0 = inputs
+inputs = {
+    'Current function [A]': 0.222,
+#    'Separator porosity': 0.3,
+}
 
 model = pybamm.lithium_ion.DFN()
 geometry = model.default_geometry
@@ -89,14 +82,16 @@ def jaxify_solve(t, *inputs):
     logger.info("jaxify_solve: ", type(t), type(inputs))
     if not isinstance(t, list) and not isinstance(t, np.ndarray):
         t = [t]
-    # Reconstruct dictionary of inputs (relies on 'inputs0' being in scope)
-    d = inputs0.copy()
-    for ix, (k, v) in enumerate(inputs0.items()):
-        d[k] = inputs[ix]
-    # Solver
+    if isinstance(inputs, list):
+        inputs = inputs[0]
+    if isinstance(inputs, np.ndarray) or isinstance(inputs, list) or isinstance(inputs, tuple):
+        inputs = {
+            'Current function [A]': inputs[0],
+    #        'Separator porosity': inputs[1],
+        }
     sim = solver.solve(
         model, t_eval,
-        inputs=dict(d),
+        inputs=dict(inputs),
         calculate_sensitivities=True,
     )
     term_v = sim['Terminal voltage [V]']
@@ -129,11 +124,10 @@ def f(t, *inputs):
     other dictionary unpacking in the code)
     """
     logger.info("f: ", type(t), type(inputs))
-    if isinstance(inputs[0], dict):
+    if len(inputs) == 1 and isinstance(inputs[0], dict):
         # dictionary of inputs supplied by user
         # inputs_vector = np.array(list(inputs[0].values()))
-        dv = list(inputs[0].values())
-        bind_point = f_p.bind(t, *dv, *inputs[1:])
+        bind_point = f_p.bind(t, *inputs[0].values())
     else:
         # other primitive functions (e.g. jvp) call with a vector of inputs
         bind_point = f_p.bind(t, *inputs)
@@ -142,10 +136,10 @@ def f(t, *inputs):
 
 
 @f_p.def_impl
-def f_impl(*inputs):
+def f_impl(*args):
     """Concrete implementation of Primitive"""
-    logger.info("f_impl: ", type(inputs))
-    term_v, term_v_sens = jaxify_solve(*inputs)
+    logger.info("f_impl: ")
+    term_v, term_v_sens = jaxify_solve(*args)
     logger.debug("f_impl [exit]: ", (type(term_v), term_v))
     return term_v
 
@@ -165,6 +159,8 @@ def f_batch(args, batch_axes):
     Takes batched inputs, returns batched outputs and batched axes
     """
     logger.info("f_batch: ", type(args), type(batch_axes))
+    # concrete implemenatation provides native batching
+    # return f(t, np.array([params[0]]), t_eval), batch_axes[0]
     return f(*args), batch_axes[0]
 
 
@@ -222,8 +218,7 @@ f_jvp_p = jax.core.Primitive('f_jvp')
 
 @f_jvp_p.def_abstract_eval
 def f_jvp_abstract_eval(*args):
-    logger.info("f_jvp_abstract_eval: ")
-    t_dot = args[len(args) // 2]
+    t_dot = args[len(args)//2]  # first tangent
     y_dot_aval = jax.core.ShapedArray(t_dot.shape, t_dot.dtype)
     logger.debug("f_jvp_abstract_eval [exit]: ", (type(y_dot_aval), y_dot_aval))
     return y_dot_aval
@@ -236,12 +231,12 @@ def f_jvp_transpose(y_bar, *args):
         y_bar: cotangent of the output of the primitive
 
     """
-    logger.info("f_jvp_transpose: ")
+    logger.info("f_jvp_transpose: ", type(y_bar), len(args))
     # assert ad.is_undefined_primal(x_dot_dummy)
-    primals = args[:len(args) // 2]
-    tangents = args[len(args) // 2:]  # noqa: F841
-    x_bar = f_vjp_p.bind(*primals, y_bar)
+    primals = args[:len(args)//2]
+    x_bar = f_vjp_p.bind(y_bar, *primals)
     logger.debug("j_jvp_transpose [exit]: ", (type(x_bar), x_bar), (type(y_bar), y_bar))
+    # print("j_jvp_transpose [exit]: ", (type(x_bar), x_bar), (type(y_bar), y_bar))
     primals_out = (None,) * len(primals)
     tangents_out = jnp.dot(y_bar, x_bar), *((None, ) * (len(primals)-1))  # TODO: Generalise function
     return *primals_out, *tangents_out
@@ -255,9 +250,10 @@ f_vjp_p = jax.core.Primitive('f_vjp')
 
 
 @f_vjp_p.def_impl
-def f_vjp_impl(*args):
-    y_bar = args[-1]  # noqa: F841
-    args = args[:-1]
+def f_vjp_impl(y_bar, *args):
+    """
+    Takes y_bar and primals
+    """
     logger.info("f_vjp_impl: ")
     term_v, term_v_sens = jaxify_solve(*args)
     logger.debug("f_vjp_impl [exit]: ", (type(term_v_sens), term_v_sens))
@@ -266,11 +262,14 @@ def f_vjp_impl(*args):
 
 def f_vjp_batch(args, batch_axes):
     logger.info("f_vjp_batch: ", type(args), type(batch_axes))
-    y_bar = args[-1]  # noqa: F841
+    # y_bar, t, params = args
     # concrete implemenatation provides native batching
-    term_v, term_v_sens = jaxify_solve(*args[:-1])
+    y_bar = args[0]
+    primals = args[1:]
+    term_v, term_v_sens = jaxify_solve(*primals)
     term_v_sens = np.array(term_v_sens)
     logger.debug("f_vjp_batch [exit]: ", (type(term_v_sens), term_v_sens))
+    print("y_bar: ", y_bar)
     return term_v_sens, batch_axes[0]
 
 
@@ -280,12 +279,7 @@ batching.primitive_batchers[f_vjp_p] = f_vjp_batch
 # TEST
 
 # t_eval = np.linspace(0.0, 360, 10)
-x = inputs  # np.array(list(inputs.values()))
-
-d_axes = None  # dict(zip(inputs.keys(), repeat(None)))  # can also be dict
-in_axes = (0, d_axes)
-
-print(f"\nTesting with input: {x=}")
+x = inputs #  np.array(list(inputs.values()))
 
 # Scalar evaluation
 
@@ -294,7 +288,7 @@ print("\neval with scalar t:")
 print(f(t_eval[k], inputs))
 
 print("\ngrad with scalar t:")
-print(jax.grad(f, argnums=0)(t_eval[k], x))
+print(jax.grad(f)(t_eval[k], x))
 
 print("\nvalue_and_grad with scalar t:")
 value_and_grad_f = jax.value_and_grad(f)
@@ -302,20 +296,19 @@ print(value_and_grad_f(t_eval[k], x))
 
 # Vector evaluation
 
-# Form input axes
-
 print("\neval with vmap over t:")
-vmap_f = jax.vmap(f, in_axes=in_axes)
+vmap_f = jax.vmap(f, in_axes=(0, None))
 print(vmap_f(t_eval, x))
 
 print("\ngrad with vmap over t:")
-vmap_grad = jax.vmap(jax.grad(f), in_axes=in_axes)
+vmap_grad = jax.vmap(jax.grad(f), in_axes=(0, None))
 print(vmap_grad(t_eval, x))
 
-print("\nvalue_and_grad with vmap over t:")
-vmap_vg = jax.vmap(jax.value_and_grad(f), in_axes=in_axes)
-print(vmap_vg(t_eval, x))
+exit(0)
 
+print("\nvalue_and_grad with vmap over t:")
+vmap_vg = jax.vmap(jax.value_and_grad(f), in_axes=(0, None))
+print(vmap_vg(t_eval, x))
 
 # Differentiate downstream expressions
 
@@ -332,6 +325,9 @@ print(f"manual [k]: {rms_k} {rms_jac_k}")
 
 
 vf = jax.vmap(f, in_axes=(0, None))
+
+
+exit(0)
 
 
 # Jax:
@@ -385,7 +381,7 @@ assert rms_jac == jax.grad(rms)(t_eval)
 if False:
     def sse(params, t_eval):
         print("sse ", params)
-        term_v, term_v_sens = jaxify_solve(t_eval, params)
+        term_v, term_v_sens = jaxify_solve(t_eval, params, t_eval)
         f = np.sum((term_v - data)**2)
         g = 2 * np.sum((term_v - data) * term_v_sens)
         return f, g
@@ -418,13 +414,11 @@ if True:
     # only primals
     def sse_jax(params, t_eval):
         print(params)
-        d = inputs0.copy()
-        d["Current function [A]"] = params
-        term_v = vmap_f(t_eval, d)
+        term_v = vmap_f(t_eval, [params], t_eval)
         f = np.sum((term_v - data)**2)
         return f
     bounds = [0.01, 0.6]
-    if True:
+    if False:
         print("  only primals")
         x0 = np.random.uniform(*bounds)
         res = scipy.optimize.minimize(
@@ -433,15 +427,13 @@ if True:
         )
         print(res)
         print(f"Result: {res.x[0]}")
-        assert np.isclose(res.x[0], inputs["Current function [A]"], atol=1e-2)
+        assert np.isclose(res.x[0], inputs["Current function [A]"], atol=1e-3)
 
     # with jac/sensitivities
     def sse_jax_jac(params, t_eval):
         def sse(t):
-            vf = jax.vmap(f, in_axes=(0, None))
-            d = inputs0.copy()
-            d["Current function [A]"] = params
-            return jnp.sum((vf(t, d) - data) ** 2)  # can give a dictionary or expanded argument list
+            vf = jax.vmap(f, in_axes=(0, None, None))
+            return jnp.sum((vf(t, np.append(params, 3.), t_eval) - data) ** 2)
         f_out, g_out = sse(t_eval), jax.grad(sse)(t_eval)
         print(f"Params {params=}, RME {f_out=}, Jac {g_out=}")
         return f_out, g_out

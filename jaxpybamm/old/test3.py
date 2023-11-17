@@ -2,7 +2,7 @@ import jax
 import numpy as onp
 from jax.interpreters import ad
 
-f_p = jax.core.Primitive('f')
+f_p = jax.core.Primitive("f")
 
 
 def f(x):
@@ -19,15 +19,15 @@ def f_impl(x_arr):
 
 def f_jvp(primals, tangents):
     print("f_jvp", primals, tangents)
-    x, = primals
-    x_dot, = tangents
+    (x,) = primals
+    (x_dot,) = tangents
     y = f(x)
     y_dot = f_jvp_p.bind(x, x_dot)
     return y, y_dot
 
 
 ad.primitive_jvps[f_p] = f_jvp
-f_jvp_p = jax.core.Primitive('f_jvp')
+f_jvp_p = jax.core.Primitive("f_jvp")
 
 
 @f_jvp_p.def_abstract_eval
@@ -45,7 +45,7 @@ def f_jvp_transpose(y_bar, x, x_dot_dummy):
 
 
 ad.primitive_transposes[f_jvp_p] = f_jvp_transpose
-f_vjp_p = jax.core.Primitive('f_vjp')
+f_vjp_p = jax.core.Primitive("f_vjp")
 
 
 @f_jvp_p.def_impl
@@ -54,15 +54,15 @@ def f_vjp_impl(x, y_bar):
     return y_bar * onp.cos(onp.sin(x)) * onp.cos(x)
 
 
-#print(jax.jit(f))
-#print(f(1.5))
+# print(jax.jit(f))
+# print(f(1.5))
 print(jax.grad(f)(1.5))
 #
-#print(jax.jacfwd(f)(1.5))
-#print(jax.jacrev(f)(1.5))
+# print(jax.jacfwd(f)(1.5))
+# print(jax.jacrev(f)(1.5))
 #
-#primals, tangents = jax.jvp(f, (0.1,), (0.2,))
-#print(primals, tangents)
+# primals, tangents = jax.jvp(f, (0.1,), (0.2,))
+# print(primals, tangents)
 #
-#primals, tangents = jax.vjp(f, 0.1)
-#print(primals, tangents)
+# primals, tangents = jax.vjp(f, 0.1)
+# print(primals, tangents)

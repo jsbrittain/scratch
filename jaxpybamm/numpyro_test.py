@@ -9,7 +9,6 @@ from jax import vmap
 
 
 def test_single_input():
-
     # Custom Jax primitive
     @custom_vjp
     def h(x):
@@ -33,10 +32,10 @@ def test_single_input():
 
     # Model
     def model(x, y):
-        sigma = numpyro.sample('sigma', dist.Exponential(1.))
-        x0 = numpyro.sample('x0', dist.Uniform(-1., 1.))
+        sigma = numpyro.sample("sigma", dist.Exponential(1.0))
+        x0 = numpyro.sample("x0", dist.Uniform(-1.0, 1.0))
         mu = h(x - x0)
-        numpyro.sample('y', dist.Normal(mu, sigma), obs=y)
+        numpyro.sample("y", dist.Normal(mu, sigma), obs=y)
 
     # Inference
     rng_key = random.PRNGKey(0)
@@ -53,7 +52,6 @@ def test_single_input():
 
 
 def test_multi_input():
-
     # Custom Jax primitive
     @custom_vjp
     def h(x, A):
@@ -74,17 +72,17 @@ def test_multi_input():
     sigin = 0.3
     N = 20
     x = np.sort(np.random.rand(N)) * 4 * np.pi
-    A = 0.1 + 0. * np.random.normal(1.75, 0.1, size=N)
+    A = 0.1 + 0.0 * np.random.normal(1.75, 0.1, size=N)
     data = h(x, A) + np.random.normal(0, sigin, size=N)
 
     # Model
     def model(x, y):
-        sigma = numpyro.sample('sigma', dist.Exponential(1.))
-        x0 = numpyro.sample('x0', dist.Uniform(-1., 1.))
-        A = numpyro.sample('A', dist.Exponential(1.))
+        sigma = numpyro.sample("sigma", dist.Exponential(1.0))
+        x0 = numpyro.sample("x0", dist.Uniform(-1.0, 1.0))
+        A = numpyro.sample("A", dist.Exponential(1.0))
         hv = vmap(h, (0, None), 0)
         mu = hv(x - x0, A)
-        numpyro.sample('y', dist.Normal(mu, sigma), obs=y)
+        numpyro.sample("y", dist.Normal(mu, sigma), obs=y)
 
     # Inference
     rng_key = random.PRNGKey(0)

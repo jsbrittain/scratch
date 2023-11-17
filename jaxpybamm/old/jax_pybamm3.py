@@ -3,27 +3,17 @@ import numpy as np
 import scipy
 from functools import cache
 from itertools import repeat
-from functools import partial
+from typing import Union
 import jax
 import logging
 from jax import lax
 from jax import numpy as jnp
+from jax.tree_util import Partial
 from jax.interpreters import ad
 from jax.interpreters import xla
 from jax.interpreters import mlir
 from jax.interpreters import batching
-from jax.interpreters.mlir import custom_call
 from jax._src.lib.mlir.dialects import hlo
-
-from jax.lib import xla_client
-import importlib.util
-
-cpu_ops_spec = importlib.util.find_spec("idaklu_jax.cpu_ops")
-cpu_ops = importlib.util.module_from_spec(cpu_ops_spec)
-cpu_ops_spec.loader.exec_module(cpu_ops)
-
-for _name, _value in cpu_ops.registrations().items():
-    xla_client.register_custom_call_target(_name, _value, platform="cpu")
 
 
 # Custom logger
@@ -97,33 +87,40 @@ data = solver.solve(
 ](t_eval)
 
 
-vars_out = ["Terminal Voltage [V]"]
-vars_in = ["Current function [A]"]
-
-
 # IMPLEMENTATION DEFINITION
 #
 # See https://github.com/google/jax/blob/main/jax/_src/core.py
 # for Primitive class definition
 
 
-def jaxify_solve(t, *inputs):
+def jaxify_solve(
+    t: Union[float, np.array],
+    inputs: dict,
+    doutput: str,
+    dinput: str,
+    solver: pybamm.BaseSolver = solver,
+    model: pybamm.BaseModel = model,
+    t_eval: np.array = t_eval,
+):
     logger.info("jaxify_solve: ", type(t), type(inputs))
     if not isinstance(t, list) and not isinstance(t, np.ndarray):
         t = [t]
     # Reconstruct dictionary of inputs (relies on 'inputs0' being in scope)
-    d = inputs0.copy()
-    for ix, (k, v) in enumerate(inputs0.items()):
-        d[k] = inputs[ix]
+    if not isinstance(inputs, dict):
+        d = inputs0.copy()
+        for ix, (k, v) in enumerate(d.items()):
+            d[k] = inputs[ix]
+    else:
+        d = inputs.copy()
     # Solver
     sim = solver.solve(
         model,
         t_eval,
-        inputs=dict(d),
+        inputs=d,
         calculate_sensitivities=True,
     )
-    term_v = sim["Terminal voltage [V]"]
-    term_v_sens = sim["Terminal voltage [V]"].sensitivities["Current function [A]"]
+    term_v = sim[doutput]
+    term_v_sens = sim[doutput].sensitivities[dinput]
     if len(t) == 1:
         tk = np.abs(t_eval - t).argmin()
         return term_v(t)[0], np.array(term_v_sens[tk])[0][0]
@@ -137,10 +134,17 @@ def jaxify_solve(t, *inputs):
 # JAX PRIMITIVE DEFINITION
 
 f_p = jax.core.Primitive("f")
-# f_p.multiple_results = True  # return a vector (of time samples)
 
 
-def f(t, *inputs):
+def f(
+    t: Union[float, np.array],
+    inputs: dict,
+    doutput: str,
+    dinput: str,
+    solver: pybamm.BaseSolver = solver,
+    model: pybamm.BaseModel = model,
+    t_eval: np.array = t_eval,
+):
     """
     Takes a dictionary of inputs when called directly, e.g.:
         inputs = {
@@ -154,35 +158,37 @@ def f(t, *inputs):
     other dictionary unpacking in the code)
     """
     logger.info("f: ", type(t), type(inputs))
-    if isinstance(inputs[0], dict):
-        # dictionary of inputs supplied by user
-        # inputs_vector = np.array(list(inputs[0].values()))
-        dv = list(inputs[0].values())
-        bind_point = f_p.bind(t, *dv, *inputs[1:])
-    else:
-        # other primitive functions (e.g. jvp) call with a vector of inputs
-        bind_point = f_p.bind(t, *inputs)
+    inputs = np.array(list(inputs.values())) if isinstance(inputs, dict) else inputs
+    bind_point = f_p.bind(
+        t,
+        inputs,
+        doutput,
+        dinput,
+        solver,
+        model,
+        t_eval,
+    )
     logger.debug("f [exit]: ", (type(bind_point), bind_point))
     return bind_point
 
 
 @f_p.def_impl
-def f_impl(*inputs):
+def f_impl(*args):
     """Concrete implementation of Primitive"""
-    logger.info("f_impl: ", type(inputs))
-    term_v, term_v_sens = jaxify_solve(*inputs)
+    logger.info("f_impl: ", type(args))
+    term_v, term_v_sens = jaxify_solve(*args)
     logger.debug("f_impl [exit]: ", (type(term_v), term_v))
     return term_v
 
 
-@f_p.def_abstract_eval
-def f_abstract_eval(t, *inputs):
-    """Abstract evaluation of Primitive
-    Takes abstractions of inputs, returned ShapedArray for result of primitive
-    """
-    logger.info("f_abstract_eval")
-    y_aval = jax.core.ShapedArray(t.shape, t.dtype)
-    return y_aval
+# @f_p.def_abstract_eval
+# def f_abstract_eval(t_aval, params_aval, t_eval_aval):
+#     """Abstract evaluation of Primitive
+#     Takes abstractions of inputs, returned ShapedArray for result of primitive
+#     """
+#     logger.info("f_abstract_eval")
+#     y_aval = jax.core.ShapedArray(t_aval.shape, t_aval.dtype)
+#     return y_aval
 
 
 def f_batch(args, batch_axes):
@@ -195,43 +201,6 @@ def f_batch(args, batch_axes):
 
 batching.primitive_batchers[f_p] = f_batch
 
-
-# def f_lowering(ctx, mean_anom, ecc, *, platform="cpu"):
-def f_lowering_cpu(ctx, t, *inputs):
-    logger.info("jaxify_lowering: ")
-    t_aval = ctx.avals_in[0]
-    np_dtype = t_aval.dtype
-
-    if np_dtype == np.float64:
-        op_name = "cpu_kepler_f64"
-    else:
-        raise NotImplementedError(f"Unsupported dtype {np_dtype}")
-
-    dtype = mlir.ir.RankedTensorType(t.type)
-    dims = dtype.shape
-    layout = tuple(range(len(dims) - 1, -1, -1))
-    size = np.prod(dims).astype(np.int64)
-    results = custom_call(
-        op_name,
-        result_types=[dtype],  # ...
-        operands=[
-            mlir.ir_constant(size),
-            t,
-            t,
-        ],  # TODO: Passing t twice to simulate inputs of equal length
-        operand_layouts=[(), layout, layout],
-        result_layouts=[layout],  # ...
-    ).results
-    return results
-
-
-# f_p.def_impl(partial(xla.apply_primitive, f_p))
-# f_p.def_abstract_eval(f_abstract_eval)
-mlir.register_lowering(
-    f_p,
-    f_lowering_cpu,
-    platform="cpu",
-)
 
 # JVP / Forward-mode autodiff / J.v len(v)=num_inputs / len(return)=num_outputs
 
@@ -330,12 +299,6 @@ def f_vjp_impl(*args):
     return term_v_sens
 
 
-@f_vjp_p.def_abstract_eval
-def f_vjp_abstract_eval(t, *args):
-    y_aval = jax.core.ShapedArray(t.shape, t.dtype)
-    return y_aval
-
-
 def f_vjp_batch(args, batch_axes):
     logger.info("f_vjp_batch: ", type(args), type(batch_axes))
     y_bar = args[-1]  # noqa: F841
@@ -351,11 +314,24 @@ batching.primitive_batchers[f_vjp_p] = f_vjp_batch
 
 # TEST
 
+
 # t_eval = np.linspace(0.0, 360, 10)
 x = inputs  # np.array(list(inputs.values()))
 
 d_axes = None  # dict(zip(inputs.keys(), repeat(None)))  # can also be dict
 in_axes = (0, d_axes)
+
+# test run main solve function
+js = jaxify_solve(
+    t=0.0,
+    inputs=inputs0,
+    doutput="Terminal voltage [V]",
+    dinput="Current function [A]",
+    solver=solver,
+    model=model,
+    t_eval=t_eval,
+)
+print("Test solver fcn: ", js)
 
 print(f"\nTesting with input: {x=}")
 
@@ -363,17 +339,43 @@ print(f"\nTesting with input: {x=}")
 
 k = 5
 print("\neval with scalar t:")
-print(f(t_eval[k], inputs))
+print(
+    f(
+        t_eval[k],
+        inputs,
+        doutput="Terminal voltage [V]",
+        dinput="Current function [A]",
+        solver=solver,
+        model=model,
+        t_eval=t_eval,
+    )
+)
 
 print("\ngrad with scalar t:")
-print(jax.grad(f, argnums=0)(t_eval[k], x))
+
+
+# print(jax.grad(f, argnums=0)(t_eval[k], x))
+def df(
+    t,
+    inputs: dict,
+):
+    return Partial(
+        f,
+        doutput="Terminal voltage [V]",
+        dinput="Current function [A]",
+        solver=solver,
+        model=model,
+        t_eval=t_eval,
+    )(t, inputs)
+
+
+print(jax.grad(df, argnums=0)(t_eval[k], inputs))
+
+exit(0)
 
 print("\nvalue_and_grad with scalar t:")
 value_and_grad_f = jax.value_and_grad(f)
 print(value_and_grad_f(t_eval[k], x))
-
-print("\njit eval with scalar t:")
-print(jax.jit(f)(t_eval, x))
 
 # Vector evaluation
 
@@ -390,10 +392,6 @@ print(vmap_grad(t_eval, x))
 print("\nvalue_and_grad with vmap over t:")
 vmap_vg = jax.vmap(jax.value_and_grad(f), in_axes=in_axes)
 print(vmap_vg(t_eval, x))
-
-print("\njit eval with vmap over t:")
-vmap_jit = jax.vmap(jax.jit(f), in_axes=in_axes)
-print(vmap_jit(t_eval, x))
 
 
 # Differentiate downstream expressions
@@ -495,7 +493,7 @@ if False:
         assert np.isclose(res.x[0], inputs["Current function [A]"], atol=1e-3)
 
 # Optimise with scipy (WITH jax)
-if True:
+if False:
     print("\nOptimise with scipy (WITH jax)")
 
     # only primals
@@ -521,13 +519,11 @@ if True:
         assert np.isclose(res.x[0], inputs["Current function [A]"], atol=1e-2)
 
     # with jac/sensitivities
-    def sse_jax_jac(params, varnames, t_eval):
+    def sse_jax_jac(params, t_eval):
         def sse(t):
-            assert len(params) == len(varnames)
             vf = jax.vmap(f, in_axes=(0, None))
             d = inputs0.copy()
-            for ix, name in enumerate(varnames):
-                d[name] = params[ix]
+            d["Current function [A]"] = params
             return jnp.sum((vf(t, d) - data) ** 2)
 
         f_out, g_out = sse(t_eval), jax.grad(sse)(t_eval)
@@ -538,7 +534,7 @@ if True:
         print("  with jac/sensitivities")
         x0 = np.random.uniform(*bounds)
         res = scipy.optimize.minimize(
-            lambda x: sse_jax_jac(x, ["Current function [A]"], t_eval),
+            lambda x: sse_jax_jac(x, t_eval),
             x0,
             jac=True,
             bounds=[bounds],

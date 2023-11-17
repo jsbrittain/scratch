@@ -24,14 +24,18 @@ t_eval = np.linspace(0, 3600, 100)
 # solver = pybamm.CasadiSolver(mode="fast", rtol=1e-6, atol=1e-6)
 solver = pybamm.IDAKLUSolver(rtol=1e-6, atol=1e-6)
 
-inputs = {'Current function [A]': 0.222}
+inputs = {"Current function [A]": 0.222}
 data = solver.solve(
-    model, t_eval,
+    model,
+    t_eval,
     inputs=inputs,
-)['Terminal voltage [V]'](t_eval)
+)[
+    "Terminal voltage [V]"
+](t_eval)
 
 
 # IMPLEMENTATION DEFINITION
+
 
 class hashabledict(dict):
     def __hash__(self):
@@ -46,14 +50,15 @@ def jaxify_solve(t):
     if not isinstance(t, list) and not isinstance(t, np.ndarray):
         t = [t]
     if isinstance(inputs, np.ndarray):
-        inputs = {'Current function [A]': inputs[0]}
+        inputs = {"Current function [A]": inputs[0]}
     sim = solver.solve(
-        model, t_eval,
+        model,
+        t_eval,
         inputs=dict(inputs),
         calculate_sensitivities=True,
     )
-    term_v = sim['Terminal voltage [V]']
-    term_v_sens = sim['Terminal voltage [V]'].sensitivities['Current function [A]']
+    term_v = sim["Terminal voltage [V]"]
+    term_v_sens = sim["Terminal voltage [V]"].sensitivities["Current function [A]"]
     if len(t) == 1:
         tk = np.abs(t_eval - t).argmin()
         print("jaxify_solve [exit]: ", term_v(t)[0], term_v_sens[tk])
@@ -65,7 +70,7 @@ def jaxify_solve(t):
 
 # JAX PRIMITIVE DEFINITION
 
-f_p = jax.core.Primitive('f')
+f_p = jax.core.Primitive("f")
 
 
 def f(t):
@@ -86,7 +91,7 @@ def f_abstract_eval(t_aval):
     Takes abstractions of inputs, returned ShapedArray for result of primitive
     """
     print("f_abstract_eval")
-    y_aval = jax.core.ShapedArray((1,1), 'float64') #  t_aval.shape, t_aval.dtype)
+    y_aval = jax.core.ShapedArray((1, 1), "float64")  #  t_aval.shape, t_aval.dtype)
     return y_aval
 
 
@@ -112,8 +117,8 @@ def f_jvp(primals, tangents):
     tangents_out has the same Python tree structure and shapes as primals_out
     """
     print("f_jvp: ", type(primals[0]), type(tangents[0]))
-    x_t, = primals
-    x_dot_t, = tangents
+    (x_t,) = primals
+    (x_dot_t,) = tangents
     y, y_dot = jaxify_solve(x_t, inputs, t_eval)
     # y = f(x_t, x_params, x_t_eval)
     # y_dot = f_jvp_p.bind(
@@ -124,13 +129,13 @@ def f_jvp(primals, tangents):
 
 
 ad.primitive_jvps[f_p] = f_jvp
-f_jvp_p = jax.core.Primitive('f_jvp')
+f_jvp_p = jax.core.Primitive("f_jvp")
 
 
 @f_jvp_p.def_impl
 def f_jvp_p_eval(primals, tangents):
     print("f_jvp_p_eval: ", type(primals), type(tangents))
-    x_t, = primals
+    (x_t,) = primals
     y, y_dot = jaxify_solve(x_t)
     return y_dot[0]
 
@@ -138,10 +143,10 @@ def f_jvp_p_eval(primals, tangents):
 @f_jvp_p.def_abstract_eval
 def f_jvp_abstract_eval(primals, tangents):
     print("f_jvp_abstract_eval: ", type(primals), type(tangents))
-    x_t_aval, = primals
-    x_dot_t_aval, = tangents
+    (x_t_aval,) = primals
+    (x_dot_t_aval,) = tangents
     # y_dot_aval = jax.core.ShapedArray(x_dot_t_aval.shape, x_dot_t_aval.dtype)
-    y_dot_aval = jax.core.ShapedArray((1, 1), 'float64')
+    y_dot_aval = jax.core.ShapedArray((1, 1), "float64")
     print("f_jvp_abstract_eval [exit]: ", y_dot_aval)
     return y_dot_aval
 
@@ -157,7 +162,7 @@ ad.primitive_transposes[f_jvp_p] = f_jvp_transpose
 
 # VJP
 
-f_vjp_p = jax.core.Primitive('f_vjp')
+f_vjp_p = jax.core.Primitive("f_vjp")
 
 
 @f_vjp_p.def_impl
@@ -203,10 +208,11 @@ print("\nvalue_and_grad with vmap over t:")
 
 # Optimise with scipy (WITHOUT jax)
 if True:
+
     def sse(params, t_eval):
         print("sse ", params)
         term_v, term_v_sens = jaxify_solve(t_eval, params, t_eval)
-        f = np.sum((term_v - data)**2)
+        f = np.sum((term_v - data) ** 2)
         g = 2 * np.sum((term_v - data) * term_v_sens)
         return f, g
 
@@ -216,7 +222,8 @@ if True:
         x0 = np.random.uniform(*bounds)
         res = scipy.optimize.minimize(
             lambda x: sse(x, t_eval)[0],
-            x0, bounds=[bounds],
+            x0,
+            bounds=[bounds],
         )
         print(res)
         print(res.x[0])
@@ -225,7 +232,9 @@ if True:
         x0 = np.random.uniform(*bounds)
         res = scipy.optimize.minimize(
             lambda x: sse(x, t_eval),
-            x0, jac=True, bounds=[bounds],
+            x0,
+            jac=True,
+            bounds=[bounds],
         )
         print(res)
         print(res.x[0])
@@ -238,15 +247,17 @@ if True:
     def sse_jax(params, t_eval):
         print(params)
         term_v = vmap_f(t_eval, [params], t_eval)
-        f = np.sum((term_v - data)**2)
+        f = np.sum((term_v - data) ** 2)
         return f
+
     bounds = [0.01, 0.6]
     if False:
         print("  only primals")
         x0 = np.random.uniform(*bounds)
         res = scipy.optimize.minimize(
             lambda x: sse_jax(x, t_eval),
-            x0, bounds=[bounds],
+            x0,
+            bounds=[bounds],
         )
         print(res)
         print(res.x[0])
@@ -255,15 +266,18 @@ if True:
     def sse_jax_jac(params, t_eval):
         # TODO: use value_and_grad
         term_v, term_v_sens = value_and_grad_f(t_eval, [params], t_eval)
-        f = np.sum((term_v - data)**2)
+        f = np.sum((term_v - data) ** 2)
         g = 2 * np.sum((term_v - data) * term_v_sens)
         return f, g
+
     if False:
         print("  with jac/sensitivities")
         x0 = np.random.uniform(*bounds)
         res = scipy.optimize.minimize(
             lambda x: sse_jax_jac(x, t_eval),
-            x0, jac=True, bounds=[bounds],
+            x0,
+            jac=True,
+            bounds=[bounds],
         )
         print(res)
         print(res.x[0])

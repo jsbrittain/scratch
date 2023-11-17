@@ -5,7 +5,7 @@ from jax.interpreters import mlir
 from jax._src.lib.mlir.dialects import hlo
 
 # Make a Primitive
-foo_p = jax.core.Primitive('foo')
+foo_p = jax.core.Primitive("foo")
 
 
 def foo(x1):
@@ -38,12 +38,12 @@ def foo_lowering(ctx, x1c):
     return [hlo.SineOp(x1c).result]
 
 
-mlir.register_lowering(foo_p, foo_lowering, platform='cpu')
+mlir.register_lowering(foo_p, foo_lowering, platform="cpu")
 
 
 # Give it a JVP rule, which trivially just calls another primitive we'll define.
 def foo_jvp(primals, tangents):
-    (x1, ), (x1dot, ) = primals, tangents
+    (x1,), (x1dot,) = primals, tangents
     y = foo(x1)
     y_dot = foo_jvp_p.bind(x1, x1dot)
     return y, y_dot
@@ -51,7 +51,7 @@ def foo_jvp(primals, tangents):
 
 ad.primitive_jvps[foo_p] = foo_jvp
 
-foo_jvp_p = jax.core.Primitive('foo_jvp')
+foo_jvp_p = jax.core.Primitive("foo_jvp")
 
 
 # We could define an impl rule for foo_jvp_p, and thus get first-order
@@ -74,18 +74,19 @@ def foo_jvp_transpose(y_bar, x, x_dot_dummy):
 ad.primitive_transposes[foo_jvp_p] = foo_jvp_transpose
 
 # Finally, let's write the vjp rule as a primitive.
-foo_vjp_p = jax.core.Primitive('foo_vjp')
+foo_vjp_p = jax.core.Primitive("foo_vjp")
 
 
 @foo_vjp_p.def_impl
 def foo_vjp_impl(x, y_bar):
     return y_bar * onp.cos(onp.sin(x)) * onp.cos(x)
 
+
 ###
 
 
 # Let's test it!
-d = onp.array([3., 1., 2.])
+d = onp.array([3.0, 1.0, 2.0])
 print("direct: ", foo(d))
 print("jit:    ", jax.jit(foo)(d))
 print("grad:   ", jax.vmap(jax.grad(foo))(d))

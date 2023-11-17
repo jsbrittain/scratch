@@ -3,7 +3,6 @@ import numpy as np
 import scipy
 from functools import cache
 from itertools import repeat
-from functools import partial
 import jax
 import logging
 from jax import lax
@@ -12,18 +11,7 @@ from jax.interpreters import ad
 from jax.interpreters import xla
 from jax.interpreters import mlir
 from jax.interpreters import batching
-from jax.interpreters.mlir import custom_call
 from jax._src.lib.mlir.dialects import hlo
-
-from jax.lib import xla_client
-import importlib.util
-
-cpu_ops_spec = importlib.util.find_spec("idaklu_jax.cpu_ops")
-cpu_ops = importlib.util.module_from_spec(cpu_ops_spec)
-cpu_ops_spec.loader.exec_module(cpu_ops)
-
-for _name, _value in cpu_ops.registrations().items():
-    xla_client.register_custom_call_target(_name, _value, platform="cpu")
 
 
 # Custom logger
@@ -97,10 +85,6 @@ data = solver.solve(
 ](t_eval)
 
 
-vars_out = ["Terminal Voltage [V]"]
-vars_in = ["Current function [A]"]
-
-
 # IMPLEMENTATION DEFINITION
 #
 # See https://github.com/google/jax/blob/main/jax/_src/core.py
@@ -137,7 +121,6 @@ def jaxify_solve(t, *inputs):
 # JAX PRIMITIVE DEFINITION
 
 f_p = jax.core.Primitive("f")
-# f_p.multiple_results = True  # return a vector (of time samples)
 
 
 def f(t, *inputs):
@@ -175,14 +158,14 @@ def f_impl(*inputs):
     return term_v
 
 
-@f_p.def_abstract_eval
-def f_abstract_eval(t, *inputs):
-    """Abstract evaluation of Primitive
-    Takes abstractions of inputs, returned ShapedArray for result of primitive
-    """
-    logger.info("f_abstract_eval")
-    y_aval = jax.core.ShapedArray(t.shape, t.dtype)
-    return y_aval
+# @f_p.def_abstract_eval
+# def f_abstract_eval(t_aval, params_aval, t_eval_aval):
+#     """Abstract evaluation of Primitive
+#     Takes abstractions of inputs, returned ShapedArray for result of primitive
+#     """
+#     logger.info("f_abstract_eval")
+#     y_aval = jax.core.ShapedArray(t_aval.shape, t_aval.dtype)
+#     return y_aval
 
 
 def f_batch(args, batch_axes):
@@ -195,43 +178,6 @@ def f_batch(args, batch_axes):
 
 batching.primitive_batchers[f_p] = f_batch
 
-
-# def f_lowering(ctx, mean_anom, ecc, *, platform="cpu"):
-def f_lowering_cpu(ctx, t, *inputs):
-    logger.info("jaxify_lowering: ")
-    t_aval = ctx.avals_in[0]
-    np_dtype = t_aval.dtype
-
-    if np_dtype == np.float64:
-        op_name = "cpu_kepler_f64"
-    else:
-        raise NotImplementedError(f"Unsupported dtype {np_dtype}")
-
-    dtype = mlir.ir.RankedTensorType(t.type)
-    dims = dtype.shape
-    layout = tuple(range(len(dims) - 1, -1, -1))
-    size = np.prod(dims).astype(np.int64)
-    results = custom_call(
-        op_name,
-        result_types=[dtype],  # ...
-        operands=[
-            mlir.ir_constant(size),
-            t,
-            t,
-        ],  # TODO: Passing t twice to simulate inputs of equal length
-        operand_layouts=[(), layout, layout],
-        result_layouts=[layout],  # ...
-    ).results
-    return results
-
-
-# f_p.def_impl(partial(xla.apply_primitive, f_p))
-# f_p.def_abstract_eval(f_abstract_eval)
-mlir.register_lowering(
-    f_p,
-    f_lowering_cpu,
-    platform="cpu",
-)
 
 # JVP / Forward-mode autodiff / J.v len(v)=num_inputs / len(return)=num_outputs
 
@@ -330,12 +276,6 @@ def f_vjp_impl(*args):
     return term_v_sens
 
 
-@f_vjp_p.def_abstract_eval
-def f_vjp_abstract_eval(t, *args):
-    y_aval = jax.core.ShapedArray(t.shape, t.dtype)
-    return y_aval
-
-
 def f_vjp_batch(args, batch_axes):
     logger.info("f_vjp_batch: ", type(args), type(batch_axes))
     y_bar = args[-1]  # noqa: F841
@@ -372,9 +312,6 @@ print("\nvalue_and_grad with scalar t:")
 value_and_grad_f = jax.value_and_grad(f)
 print(value_and_grad_f(t_eval[k], x))
 
-print("\njit eval with scalar t:")
-print(jax.jit(f)(t_eval, x))
-
 # Vector evaluation
 
 # Form input axes
@@ -390,10 +327,6 @@ print(vmap_grad(t_eval, x))
 print("\nvalue_and_grad with vmap over t:")
 vmap_vg = jax.vmap(jax.value_and_grad(f), in_axes=in_axes)
 print(vmap_vg(t_eval, x))
-
-print("\njit eval with vmap over t:")
-vmap_jit = jax.vmap(jax.jit(f), in_axes=in_axes)
-print(vmap_jit(t_eval, x))
 
 
 # Differentiate downstream expressions
@@ -495,7 +428,7 @@ if False:
         assert np.isclose(res.x[0], inputs["Current function [A]"], atol=1e-3)
 
 # Optimise with scipy (WITH jax)
-if True:
+if False:
     print("\nOptimise with scipy (WITH jax)")
 
     # only primals
@@ -521,13 +454,11 @@ if True:
         assert np.isclose(res.x[0], inputs["Current function [A]"], atol=1e-2)
 
     # with jac/sensitivities
-    def sse_jax_jac(params, varnames, t_eval):
+    def sse_jax_jac(params, t_eval):
         def sse(t):
-            assert len(params) == len(varnames)
             vf = jax.vmap(f, in_axes=(0, None))
             d = inputs0.copy()
-            for ix, name in enumerate(varnames):
-                d[name] = params[ix]
+            d["Current function [A]"] = params
             return jnp.sum((vf(t, d) - data) ** 2)
 
         f_out, g_out = sse(t_eval), jax.grad(sse)(t_eval)
@@ -538,7 +469,7 @@ if True:
         print("  with jac/sensitivities")
         x0 = np.random.uniform(*bounds)
         res = scipy.optimize.minimize(
-            lambda x: sse_jax_jac(x, ["Current function [A]"], t_eval),
+            lambda x: sse_jax_jac(x, t_eval),
             x0,
             jac=True,
             bounds=[bounds],

@@ -31,7 +31,8 @@ multiply_add_p.def_impl(multiply_add_impl)
 multiply_add_p.def_abstract_eval(multiply_add_abstract_eval)
 
 from jax.interpreters import mlir
-mlir.register_lowering(multiply_add_p, multiply_add_lowering, platform='cpu')
+
+mlir.register_lowering(multiply_add_p, multiply_add_lowering, platform="cpu")
 
 
 def multiply_add_prim(x, y, z):
@@ -43,6 +44,6 @@ def square_add_prim(a, b):
     return multiply_add_prim(a, a, b)
 
 
-print(square_add_prim(2., 10.))
-print(api.jit(square_add_prim)(2., 10.))
-print(api.grad(square_add_prim, argnums=0)(2.0, 10.))
+print(square_add_prim(2.0, 10.0))
+print(api.jit(square_add_prim)(2.0, 10.0))
+print(api.grad(square_add_prim, argnums=0)(2.0, 10.0))

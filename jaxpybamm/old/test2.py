@@ -4,7 +4,7 @@ from jax.interpreters import ad
 from jax import lax
 
 # Make a Primitive
-foo_p = jax.core.Primitive('foo')
+foo_p = jax.core.Primitive("foo")
 
 
 def foo(x1, x2):
@@ -29,15 +29,17 @@ def foo_jvp(primals, tangents):
         return lax.zeros_like_array(x1) if type(tan) is ad.Zero else tan
 
     y_dot = foo_jvp_p.bind(
-        x1, x2,
-        make_zero(x1dot), make_zero(x2dot),
+        x1,
+        x2,
+        make_zero(x1dot),
+        make_zero(x2dot),
     )
     return y, y_dot
 
 
 ad.primitive_jvps[foo_p] = foo_jvp
 
-foo_jvp_p = jax.core.Primitive('foo_jvp')
+foo_jvp_p = jax.core.Primitive("foo_jvp")
 
 
 # We could define an impl rule for foo_jvp_p, and thus get first-order
@@ -51,7 +53,7 @@ def foo_jvp_abstract_eval(x1_aval, x2_aval, x1_dot_aval, x2_dot_aval):
     return y_dot_aval
 
 
-def foo_jvp_transpose(y_bar, *args): # x1, x2, x1dot_dummy, x2dot_dummy):
+def foo_jvp_transpose(y_bar, *args):  # x1, x2, x1dot_dummy, x2dot_dummy):
     # print("foo_jvp_transpose: ", y_bar, x1, x2, x1dot_dummy, x2dot_dummy)
     x1, x2, x1dot_dummy, x2dot_dummy = args
     if ad.is_undefined_primal(x1dot_dummy):
@@ -66,7 +68,7 @@ ad.primitive_transposes[foo_jvp_p] = foo_jvp_transpose
 
 
 # Finally, let's write the vjp rule as a primitive.
-foo_vjp_p = jax.core.Primitive('foo_vjp')
+foo_vjp_p = jax.core.Primitive("foo_vjp")
 
 
 # @foo_vjp_p.def_impl
@@ -76,8 +78,8 @@ foo_vjp_p = jax.core.Primitive('foo_vjp')
 
 
 # Let's test it!
-print(jax.grad(foo, argnums=0)(3., 1.))
-print(jax.grad(foo, argnums=1)(1., 3.))
+print(jax.grad(foo, argnums=0)(3.0, 1.0))
+print(jax.grad(foo, argnums=1)(1.0, 3.0))
 
-print(jax.grad(foo, argnums=0)(1., 3.))
-print(jax.grad(foo, argnums=1)(3., 1.))
+print(jax.grad(foo, argnums=0)(1.0, 3.0))
+print(jax.grad(foo, argnums=1)(3.0, 1.0))

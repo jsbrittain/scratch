@@ -107,6 +107,7 @@ if os.environ.get("KEPLER_JAX_CUDA", "no").lower() == "yes":
 
 setup(
     name="kepler_jax",
+    version="0.0.1",
     author="",
     author_email="",
     url="https://github.com/dfm/extending-jax",

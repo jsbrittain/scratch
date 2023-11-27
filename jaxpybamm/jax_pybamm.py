@@ -154,14 +154,8 @@ def f(t, *inputs):
     other dictionary unpacking in the code)
     """
     logger.info("f: ", type(t), type(inputs))
-    if isinstance(inputs[0], dict):
-        # dictionary of inputs supplied by user
-        # inputs_vector = np.array(list(inputs[0].values()))
-        dv = list(inputs[0].values())
-        bind_point = f_p.bind(t, *dv, *inputs[1:])
-    else:
-        # other primitive functions (e.g. jvp) call with a vector of inputs
-        bind_point = f_p.bind(t, *inputs)
+    dv = list(inputs[0].values())
+    bind_point = f_p.bind(t, *dv, *inputs[1:])
     logger.debug("f [exit]: ", (type(bind_point), bind_point))
     return bind_point
 
@@ -190,7 +184,8 @@ def f_batch(args, batch_axes):
     Takes batched inputs, returns batched outputs and batched axes
     """
     logger.info("f_batch: ", type(args), type(batch_axes))
-    return f(*args), batch_axes[0]
+    return f_p.bind(*args), batch_axes[0]
+    # return f(*args), batch_axes[0]
 
 
 batching.primitive_batchers[f_p] = f_batch
@@ -263,7 +258,8 @@ def f_jvp(primals, tangents):
     zero_mapped_tangents = tuple(
         map(lambda pt: make_zero(pt[0], pt[1]), zip(primals, tangents))
     )
-    y = f(*primals)  # primals_out = fun(*primals); (unnecessary call?)
+    # y = f(*primals)  # primals_out = fun(*primals); (unnecessary call?)
+    y = f_p.bind(*primals)  # returns numpy array
     y_dot = f_jvp_p.bind(  # tangents_out = J.v
         *primals,
         *zero_mapped_tangents,
@@ -349,6 +345,45 @@ def f_vjp_batch(args, batch_axes):
 batching.primitive_batchers[f_vjp_p] = f_vjp_batch
 
 
+# def f_lowering(ctx, mean_anom, ecc, *, platform="cpu"):
+def f_vjp_lowering_cpu(ctx, t, *inputs):
+    # TODO: This is just a copy of the f_p lowering function for now
+    logger.info("jaxify_lowering: ")
+    t_aval = ctx.avals_in[0]
+    np_dtype = t_aval.dtype
+
+    if np_dtype == np.float64:
+        op_name = "cpu_kepler_f64"
+    else:
+        raise NotImplementedError(f"Unsupported dtype {np_dtype}")
+
+    dtype = mlir.ir.RankedTensorType(t.type)
+    dims = dtype.shape
+    layout = tuple(range(len(dims) - 1, -1, -1))
+    size = np.prod(dims).astype(np.int64)
+    results = custom_call(
+        op_name,
+        result_types=[dtype],  # ...
+        operands=[
+            mlir.ir_constant(size),
+            t,
+            t,
+        ],  # TODO: Passing t twice to simulate inputs of equal length
+        operand_layouts=[(), layout, layout],
+        result_layouts=[layout],  # ...
+    ).results
+    return results
+
+
+# f_p.def_impl(partial(xla.apply_primitive, f_p))
+# f_p.def_abstract_eval(f_abstract_eval)
+mlir.register_lowering(
+    f_vjp_p,
+    f_vjp_lowering_cpu,
+    platform="cpu",
+)
+
+
 # TEST
 
 # t_eval = np.linspace(0.0, 360, 10)
@@ -362,38 +397,56 @@ print(f"\nTesting with input: {x=}")
 # Scalar evaluation
 
 k = 5
-print("\neval with scalar t:")
+print("\neval with scalar t:")  # calls f
 print(f(t_eval[k], inputs))
 
-print("\ngrad with scalar t:")
+print("\ngrad with scalar t:")  # calls f
 print(jax.grad(f, argnums=0)(t_eval[k], x))
 
-print("\nvalue_and_grad with scalar t:")
+print("\nvalue_and_grad with scalar t:")  # calls f
 value_and_grad_f = jax.value_and_grad(f)
 print(value_and_grad_f(t_eval[k], x))
 
-print("\njit eval with scalar t:")
+print("\njit eval with scalar t:")  # calls f
 print(jax.jit(f)(t_eval, x))
+
+print("\njit grad with scalar t:")  # calls f
+print(jax.grad(jax.jit(f), argnums=0)(t_eval[k], x))
+
+print("\njit value_and_grad with scalar t:")
+jit_value_and_grad_f = jax.value_and_grad(jax.jit(f))  # works, but does NOT call f
+print(jit_value_and_grad_f(t_eval[k], x))
+jit_value_and_grad_f = jax.jit(jax.value_and_grad(f))  # calls f
+print(jit_value_and_grad_f(t_eval[k], x))
 
 # Vector evaluation
 
 # Form input axes
 
-print("\neval with vmap over t:")
+print("\neval with vmap over t:")  # calls f
 vmap_f = jax.vmap(f, in_axes=in_axes)
 print(vmap_f(t_eval, x))
 
-print("\ngrad with vmap over t:")
+print("\ngrad with vmap over t:")  # calls f
 vmap_grad = jax.vmap(jax.grad(f), in_axes=in_axes)
 print(vmap_grad(t_eval, x))
 
-print("\nvalue_and_grad with vmap over t:")
+print("\nvalue_and_grad with vmap over t:")  # calls f
 vmap_vg = jax.vmap(jax.value_and_grad(f), in_axes=in_axes)
 print(vmap_vg(t_eval, x))
 
-print("\njit eval with vmap over t:")
+print("\njit eval with vmap over t:")  # calls f
 vmap_jit = jax.vmap(jax.jit(f), in_axes=in_axes)
 print(vmap_jit(t_eval, x))
+
+# TODO: These functions are calling jaxify_solve, not the lowering function
+# print("\ngrad with vmap over t:")  # calls f
+# vmap_grad_jit = jax.vmap(jax.grad(jax.jit(f)), in_axes=in_axes)
+# print(vmap_grad_jit(t_eval, x))
+
+# print("\njit value_and_grad with vmap over t:")  # calls f
+# jit_vmap_vg = jax.vmap(jax.value_and_grad(jax.jit(f)), in_axes=in_axes)
+# print(jit_vmap_vg(t_eval, x))
 
 
 # Differentiate downstream expressions
@@ -460,6 +513,76 @@ assert rms_v == rms(t_eval)
 assert rms_jac == jax.grad(rms)(t_eval)
 
 
+solver = pybamm.IDAKLUSolver(
+    # method, rtol, atol, root_method, root_tol, extrap_tol, output_variables, options
+    rtol=1e-6,
+    atol=1e-6,
+    output_variables=["Terminal voltage [V]"],
+)
+
+
+def jaxsolver(
+    # model, t_eval=, inputs=, initial_conditions=, nproc=, calculate_sensitivities=
+    model,
+    t_eval,  # required arg
+    **kwargs,
+):
+    sim = solver.solve(
+        model,
+        t_eval,
+        **kwargs,
+    )
+    if kwargs.get("inputs"):
+        inputs = kwargs.get("inputs")
+        return (
+            [sim[out](t_eval) for out in solver.output_variables],
+            [sim[out].sensitivities[invar]
+                for out in solver.output_variables
+                for invar in inputs.keys()]
+        )
+    else:
+        return [sim[var](t_eval) for var in solver.output_variables]
+
+
+# Solve using IDAKLU directly
+if True:
+    def fit_fcn(params):
+        def sse(fcn, t_eval, inputs, data):
+            vec_fcn = jax.vmap(fcn, in_axes=(0, None))
+            return jnp.sum((vec_fcn(t_eval, inputs) - data) ** 2, 0)
+
+        inputs = {"Current function [A]": params[0]}
+        # return (sse(f, t_eval, inputs, data),
+        #         jax.grad(sse(f, t_eval, inputs, data)))
+
+        # term_v, term_v_sens = jaxsolver(
+        #     model,
+        #     t_eval,
+        #     inputs=parameters,
+        #     calculate_sensitivities=True,
+        # )
+        #def sse(t, inputs):
+        #    vec_fcn = jax.vmap(f, in_axes=(0, None))
+        #    return jnp.sum((vec_fcn(t, inputs) - data) ** 2, 0)
+        #    # return jnp.sum((vf(t, d) - data) ** 2)
+
+        f_out, g_out = sse(f, t_eval, inputs, data), jax.grad(sse)(f, t_eval, inputs, data)
+        print(f"Params {params=}, RME {f_out=}, Jac {g_out=}")
+        return f_out, g_out
+
+    print("Solving without jax")
+    bounds = [0.01, 0.6]
+    if True:
+        x0 = np.random.uniform(*bounds)
+        res = scipy.optimize.minimize(
+            fit_fcn,
+            x0,
+            bounds=[bounds],
+            jac=True,
+        )
+        print(res)
+        print(res.x[0])
+
 # Optimise with scipy (WITHOUT jax)
 if False:
 
@@ -495,7 +618,7 @@ if False:
         assert np.isclose(res.x[0], inputs["Current function [A]"], atol=1e-3)
 
 # Optimise with scipy (WITH jax)
-if True:
+if False:
     print("\nOptimise with scipy (WITH jax)")
 
     # only primals

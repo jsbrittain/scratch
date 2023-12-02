@@ -171,7 +171,7 @@ for outvar in output_variables:
         check = np.array(sim[outvar](t_eval[k]))
         assert np.allclose(out, check)
         # This is an alternative way to produce exactly the same result
-        #assert np.allclose(out, f(t_eval[k], x)[output_variables.index(outvar)])
+        # assert np.allclose(out, f(t_eval[k], x)[output_variables.index(outvar)])
 
 print('get_vars (scalar)')
 out = idaklu_solver.get_vars(f, output_variables)(t_eval[k], x)
@@ -185,8 +185,10 @@ print('get_var (vector)')
 for outvar in output_variables:
     out = idaklu_solver.get_var(f, outvar)(t_eval, x)
     print(f' {outvar=} {out=}')
+    check = np.array(sim[outvar](t_eval))
+    print(check)
     if check_asserts:
-        assert np.allclose(out, sim[outvar](t_eval))
+        assert np.allclose(out, check)
 
 print('get_vars (vector)')
 out = idaklu_solver.get_vars(f, output_variables)(t_eval, x)
@@ -202,8 +204,10 @@ for outvar in output_variables:
         in_axes=(0, None),
     )(t_eval, x)
     print(f' {outvar=} {out=}')
+    check = np.array(sim[outvar](t_eval))
+    print(check)
     if check_asserts:
-        assert np.allclose(out, sim[outvar](t_eval))
+        assert np.allclose(out, check)
 
 print('get_vars (vmap)')
 out = idaklu_solver.get_vars(
@@ -219,7 +223,8 @@ if check_asserts:
 #for outvar in output_variables:
 #    for invar in inputs:
 #        out = jax.grad(
-#            idaklu_solver.get_var(f, outvar)
+#            idaklu_solver.get_var(f, outvar),
+#            argnums=0,
 #        )(t_eval[k], x)
 #        print(f' {outvar=} {invar=} {out=}')
 #        if check_asserts:
@@ -229,7 +234,10 @@ print('grad get_var (vmap)')
 for outvar in output_variables:
     for invar in inputs:
         out = jax.vmap(
-            jax.grad(idaklu_solver.get_var(f, outvar)),
+            jax.grad(
+                idaklu_solver.get_var(f, outvar),
+                argnums=idaklu_solver.input_index(invar),
+            ),
             in_axes=(0, None),
         )(t_eval, x)
         print(f' {outvar=} {invar=} {out=}')
@@ -238,16 +246,18 @@ for outvar in output_variables:
         if check_asserts:
             assert np.allclose(out, check)
 
-#print('value_and_grad get_var (scalar)')
-#for outvar in output_variables:
-#    for invar in inputs:
-#        out_p, out_t = jax.value_and_grad(
-#            idaklu_solver.get_var(f, outvar)
-#        )([t_eval[k]], x)
-#        print(f' {outvar=} {invar=} {out_p=} {out_t=}')
-#        if check_asserts:
-#            assert np.allclose(out_p, sim[outvar](t_eval[k]))
-#            assert np.allclose(out_t, sim[outvar].sensitivities[invar][k])
+exit(0)
+
+# print('value_and_grad get_var (scalar)')
+# for outvar in output_variables:
+#     for invar in inputs:
+#         out_p, out_t = jax.value_and_grad(
+#             idaklu_solver.get_var(f, outvar)
+#         )([t_eval[k]], x)
+#         print(f' {outvar=} {invar=} {out_p=} {out_t=}')
+#         if check_asserts:
+#             assert np.allclose(out_p, sim[outvar](t_eval[k]))
+#             assert np.allclose(out_t, sim[outvar].sensitivities[invar][k])
 
 print('grad get_value_and_grad (vmap)')
 for outvar in output_variables:

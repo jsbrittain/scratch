@@ -7,6 +7,17 @@ import numpy as np
 import numbers
 import scipy.sparse as sparse
 
+import jax
+from jax import lax
+from jax import numpy as jnp
+from jax.interpreters import ad
+from jax.interpreters import mlir
+from jax.interpreters import batching
+from jax.interpreters.mlir import custom_call
+
+from jax.lib import xla_client
+import importlib.util
+
 import importlib
 
 idaklu_spec = importlib.util.find_spec("pybamm.solvers.idaklu")
@@ -698,6 +709,10 @@ class IDAKLUSolver(pybamm.BaseSolver):
             return fcn(t, *args)[:, indices]
         return var
 
+    def input_index(self, name):
+        """Helper function to get the index of an input variable"""
+        return list(self.jax_inputs.keys()).index(name)
+
     def jaxify(
         self,
         model,
@@ -711,18 +726,7 @@ class IDAKLUSolver(pybamm.BaseSolver):
 
         solver = self
         self.jaxify_output_variables = output_variables
-
-        import numpy as np
-        import jax
-        from jax import lax
-        from jax import numpy as jnp
-        from jax.interpreters import ad
-        from jax.interpreters import mlir
-        from jax.interpreters import batching
-        from jax.interpreters.mlir import custom_call
-
-        from jax.lib import xla_client
-        import importlib.util
+        self.jax_inputs = inputs
 
         cpu_ops_spec = importlib.util.find_spec("idaklu_jax.cpu_ops")
         if cpu_ops_spec:
@@ -765,6 +769,15 @@ class IDAKLUSolver(pybamm.BaseSolver):
 
         logger.setLevel(logger.NONE)
 
+        def get_output_variables(sim, t, invar):
+            """Helper function to get the output variables"""
+            out = (
+                jnp.array([sim[outvar](t) for outvar in output_variables]),
+                jnp.array([jnp.array(sim[outvar].sensitivities[invar]).squeeze()
+                          for outvar in output_variables])
+            )  # casadi.DM -> 2d -> 1d
+            return out[0].transpose(), out[1].transpose()
+
         def jaxify_solve(t, *args):
             logger.info("jaxify_solve: ", type(t))
             if not isinstance(t, list) and not isinstance(t, np.ndarray):
@@ -789,13 +802,9 @@ class IDAKLUSolver(pybamm.BaseSolver):
             #                   for outvar in output_variables]])
             #     )
             # else:
-            out = (
-                jnp.array([sim[outvar](t) for outvar in output_variables]),
-                jnp.array([jnp.array(sim[outvar].sensitivities[invar]).squeeze()
-                          for invar in inputs.keys()
-                          for outvar in output_variables])
-            )  # casadi.DM -> 2d -> 1d
-            return out[0].transpose(), out[1].transpose()
+            input_index = 0
+            invar = list(inputs.keys())[input_index]
+            return get_output_variables(sim, t, invar)
 
         # JAX PRIMITIVE DEFINITION
 
@@ -834,7 +843,6 @@ class IDAKLUSolver(pybamm.BaseSolver):
                 (*t.shape, len(output_variables)),
                 t.dtype
             )
-            print("y_aval: ", y_aval)
             return y_aval
 
         def f_batch(args, batch_axes):
@@ -971,12 +979,13 @@ class IDAKLUSolver(pybamm.BaseSolver):
 
         @f_vjp_p.def_impl
         def f_vjp_impl(*args):
+            logger.info("f_vjp_impl: ", type(args))
             y_bar = args[-1]  # noqa: F841
             args = args[:-1]
             logger.info("f_vjp_impl: ")
             term_v, term_v_sens = jaxify_solve(*args)
             logger.debug("f_vjp_impl [exit]: ", (type(term_v_sens), term_v_sens))
-            return term_v_sens
+            return np.array(term_v_sens)
 
         @f_vjp_p.def_abstract_eval
         def f_vjp_abstract_eval(t, *args):
@@ -989,7 +998,9 @@ class IDAKLUSolver(pybamm.BaseSolver):
             logger.info("f_vjp_batch: ", type(args), type(batch_axes))
             y_bar = args[-1]  # noqa: F841
             # concrete implemenatation provides native batching
-            term_v, term_v_sens = jaxify_solve(*args[:-1])
+            term_v, term_v_sens = jaxify_solve(
+                *args[:-1],
+            )
             term_v_sens = np.array(term_v_sens)
             logger.debug("f_vjp_batch [exit]: ", (type(term_v_sens), term_v_sens))
             return term_v_sens, batch_axes[0]

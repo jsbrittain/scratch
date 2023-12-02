@@ -19,8 +19,10 @@ from jax.lib import xla_client
 import importlib.util
 
 cpu_ops_spec = importlib.util.find_spec("idaklu_jax.cpu_ops")
-cpu_ops = importlib.util.module_from_spec(cpu_ops_spec)
-cpu_ops_spec.loader.exec_module(cpu_ops)
+if cpu_ops_spec:
+    cpu_ops = importlib.util.module_from_spec(cpu_ops_spec)
+    loader = cpu_ops_spec.loader
+    loader.exec_module(cpu_ops) if loader else None
 
 for _name, _value in cpu_ops.registrations().items():
     xla_client.register_custom_call_target(_name, _value, platform="cpu")
@@ -86,20 +88,109 @@ disc = pybamm.Discretisation(mesh, model.default_spatial_methods)
 disc.process_model(model)
 t_eval = np.linspace(0, 360, 10)
 # solver = pybamm.CasadiSolver(mode="fast", rtol=1e-6, atol=1e-6)
-solver = pybamm.IDAKLUSolver(rtol=1e-6, atol=1e-6)
+idaklu_solver = pybamm.IDAKLUSolver(rtol=1e-6, atol=1e-6)
+solver = idaklu_solver
 
-data = solver.solve(
+# Create surrogate data (using standard solver)
+data = idaklu_solver.solve(
+    # model, t_eval=, inputs=, initial_conditions=, nproc=, calculate_sensitivities=
     model,
     t_eval,
     inputs=inputs,
-)[
-    "Terminal voltage [V]"
-](t_eval)
+    calculate_sensitivities=True,
+)["Terminal voltage [V]"](t_eval)
+
+# Get jax expression for IDAKLU solver
+f_jax = idaklu_solver.jaxify(
+    model,
+    t_eval,
+    output_variables=["Terminal voltage [V]"],
+    inputs=inputs,
+    calculate_sensitivities=True,
+)
+
+print(" ")
+print(" ")
+
+print(f_jax(t_eval, inputs))
+f = f_jax
+
+print(" ")
+print(" ")
+
+# TEST
+
+# t_eval = np.linspace(0.0, 360, 10)
+x = inputs  # np.array(list(inputs.values()))
+
+d_axes = None  # dict(zip(inputs.keys(), repeat(None)))  # can also be dict
+in_axes = (0, d_axes)
+
+print(f"\nTesting with input: {x=}")
+
+# Scalar evaluation
+
+print("\neval with non-scalar t:")  # calls f
+print(f(t_eval, inputs))
+
+k = 5
+print("\neval with scalar t:")  # calls f
+print(f(t_eval[k], inputs))
+
+print("\neval with vmap over t:")  # calls f
+vmap_f = jax.vmap(f, in_axes=in_axes)
+print(vmap_f(t_eval, x))
+
+# print("\njacfwd:")  # calls f
+# print(jax.jacfwd(f)(t_eval[k], x))
+
+# print("\njacrev:")  # calls f
+# print(jax.jacrev(f)(t_eval[k], x))
+
+# print("\njacrev with vmap over t:")  # calls f
+# print(jax.vmap(jax.jacrev(f), in_axes=in_axes)(t_eval, x))
 
 
-vars_out = ["Terminal Voltage [V]"]
-vars_in = ["Current function [A]"]
+print("\ngrad with scalar t:")  # calls f
+print(jax.grad(f, argnums=0)(t_eval[k], x))
 
+print("\nvalue_and_grad with scalar t:")  # calls f
+value_and_grad_f = jax.value_and_grad(f)
+print(value_and_grad_f(t_eval[k], x))
+
+print("\njit eval with scalar t:")  # calls f
+print(jax.jit(f)(t_eval, x))
+
+print("\njit grad with scalar t:")  # calls f
+print(jax.grad(jax.jit(f), argnums=0)(t_eval[k], x))
+
+print("\njit value_and_grad with scalar t:")
+jit_value_and_grad_f = jax.value_and_grad(jax.jit(f))  # works, but does NOT call f
+print(jit_value_and_grad_f(t_eval[k], x))
+jit_value_and_grad_f = jax.jit(jax.value_and_grad(f))  # calls f
+print(jit_value_and_grad_f(t_eval[k], x))
+
+# Vector evaluation
+
+# Form input axes
+
+print("\neval with vmap over t:")  # calls f
+vmap_f = jax.vmap(f, in_axes=in_axes)
+print(vmap_f(t_eval, x))
+
+print("\ngrad with vmap over t:")  # calls f
+vmap_grad = jax.vmap(jax.grad(f), in_axes=in_axes)
+print(vmap_grad(t_eval, x))
+
+print("\nvalue_and_grad with vmap over t:")  # calls f
+vmap_vg = jax.vmap(jax.value_and_grad(f), in_axes=in_axes)
+print(vmap_vg(t_eval, x))
+
+print("\njit eval with vmap over t:")  # calls f
+vmap_jit = jax.vmap(jax.jit(f), in_axes=in_axes)
+print(vmap_jit(t_eval, x))
+
+exit(0)
 
 # IMPLEMENTATION DEFINITION
 #
@@ -547,8 +638,7 @@ def jaxsolver(
 # Solve using IDAKLU directly
 if True:
     def fit_fcn(params):
-        def sse(fcn, t_eval, inputs, data):
-            vec_fcn = jax.vmap(fcn, in_axes=(0, None))
+        def sse(t_eval, inputs, data):
             return jnp.sum((vec_fcn(t_eval, inputs) - data) ** 2, 0)
 
         inputs = {"Current function [A]": params[0]}
@@ -561,18 +651,19 @@ if True:
         #     inputs=parameters,
         #     calculate_sensitivities=True,
         # )
-        #def sse(t, inputs):
+        # def sse(t, inputs):
         #    vec_fcn = jax.vmap(f, in_axes=(0, None))
         #    return jnp.sum((vec_fcn(t, inputs) - data) ** 2, 0)
         #    # return jnp.sum((vf(t, d) - data) ** 2)
 
-        f_out, g_out = sse(f, t_eval, inputs, data), jax.grad(sse)(f, t_eval, inputs, data)
+        f_out, g_out = sse(t_eval, inputs, data), jax.grad(sse)(t_eval, inputs, data)
         print(f"Params {params=}, RME {f_out=}, Jac {g_out=}")
         return f_out, g_out
 
     print("Solving without jax")
     bounds = [0.01, 0.6]
     if True:
+        vec_fcn = jax.vmap(f, in_axes=(0, None))
         x0 = np.random.uniform(*bounds)
         res = scipy.optimize.minimize(
             fit_fcn,

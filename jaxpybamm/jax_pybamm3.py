@@ -28,39 +28,6 @@ for _name, _value in cpu_ops.registrations().items():
     xla_client.register_custom_call_target(_name, _value, platform="cpu")
 
 
-# Custom logger
-class logger:
-    NONE = 0
-    INFO = 1
-    DEBUG = 2
-
-    level = NONE
-    logging_fcns = [print]  # list of logging functions, can be file outputs, etc.
-
-    @classmethod
-    def setLevel(cls, level):
-        cls.level = level
-
-    @classmethod
-    def log(cls, *args, **kwargs):
-        for log_out in cls.logging_fcns:
-            log_out("    ", args[0])
-            for arg in args[1:]:
-                log_out("      ", arg)
-
-    @classmethod
-    def info(cls, *args, **kwargs):
-        if cls.level >= cls.INFO:
-            cls.log(*args, **kwargs)
-
-    @classmethod
-    def debug(cls, *args, **kwargs):
-        if cls.level >= cls.DEBUG:
-            cls.log(*args, **kwargs)
-
-
-logger.setLevel(logger.NONE)
-
 num_inputs = 1
 if num_inputs == 0:
     inputs = {}
@@ -219,16 +186,17 @@ check = np.array([sim[outvar](t_eval) for outvar in output_variables]).transpose
 if check_asserts:
     assert np.allclose(out, check)
 
-#print('grad get_var (scalar)')
-#for outvar in output_variables:
-#    for invar in inputs:
-#        out = jax.grad(
-#            idaklu_solver.get_var(f, outvar),
-#            argnums=0,
-#        )(t_eval[k], x)
-#        print(f' {outvar=} {invar=} {out=}')
-#        if check_asserts:
-#            assert np.allclose(out, sim[outvar].sensitivities[invar][k])
+if False:
+    print('grad get_var (scalar)')
+    for outvar in output_variables:
+        for invar in inputs:
+            out = jax.grad(
+                idaklu_solver.get_var(f, outvar),
+                argnums=0,
+            )(t_eval[k], x)
+            print(f' {outvar=} {invar=} {out=}')
+            if check_asserts:
+                assert np.allclose(out, sim[outvar].sensitivities[invar][k])
 
 print('grad get_var (vmap)')
 for outvar in output_variables:
@@ -245,8 +213,6 @@ for outvar in output_variables:
         print(check)
         if check_asserts:
             assert np.allclose(out, check)
-
-exit(0)
 
 # print('value_and_grad get_var (scalar)')
 # for outvar in output_variables:

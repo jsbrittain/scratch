@@ -773,12 +773,17 @@ class IDAKLUSolver(pybamm.BaseSolver):
             """Helper function to get the output variables"""
             out = (
                 jnp.array([sim[outvar](t) for outvar in output_variables]),
-                jnp.array([jnp.array(sim[outvar].sensitivities[invar]).squeeze()
-                          for outvar in output_variables])
             )  # casadi.DM -> 2d -> 1d
-            return out[0].transpose(), out[1].transpose()
+            if invar:
+                out = (*out,
+                    jnp.array([jnp.array(sim[outvar].sensitivities[invar]).squeeze()
+                        for outvar in output_variables])
+                )
+                return out[0].transpose(), out[1].transpose()
+            else:
+                return out[0].transpose()
 
-        def jaxify_solve(t, *args):
+        def jaxify_solve(invar, t, *args):
             logger.info("jaxify_solve: ", type(t))
             if not isinstance(t, list) and not isinstance(t, np.ndarray):
                 t = np.array([t])
@@ -793,17 +798,6 @@ class IDAKLUSolver(pybamm.BaseSolver):
                 inputs=dict(d),
                 calculate_sensitivities=True,
             )
-            # if len(t) == 1:
-            #     tk = np.abs(t_eval - t).argmin()
-            #     out = (
-            #         jnp.array([[sim[outvar](t)[0] for outvar in output_variables]]),
-            #         jnp.array([[jnp.array(sim[outvar].sensitivities[invar]).squeeze()[tk]
-            #                   for invar in inputs.keys()
-            #                   for outvar in output_variables]])
-            #     )
-            # else:
-            input_index = 0
-            invar = list(inputs.keys())[input_index]
             return get_output_variables(sim, t, invar)
 
         # JAX PRIMITIVE DEFINITION
@@ -829,7 +823,7 @@ class IDAKLUSolver(pybamm.BaseSolver):
         def f_impl(*inputs):
             """Concrete implementation of Primitive"""
             logger.info("f_impl: ", type(inputs))
-            term_v, term_v_sens = jaxify_solve(*inputs)
+            term_v = jaxify_solve(None, *inputs)
             logger.debug("f_impl [exit]: ", (type(term_v), term_v))
             return term_v
 
@@ -983,7 +977,8 @@ class IDAKLUSolver(pybamm.BaseSolver):
             y_bar = args[-1]  # noqa: F841
             args = args[:-1]
             logger.info("f_vjp_impl: ")
-            term_v, term_v_sens = jaxify_solve(*args)
+            invar = "Current function [A]"
+            term_v, term_v_sens = jaxify_solve(invar, *args)
             logger.debug("f_vjp_impl [exit]: ", (type(term_v_sens), term_v_sens))
             return np.array(term_v_sens)
 
@@ -998,7 +993,9 @@ class IDAKLUSolver(pybamm.BaseSolver):
             logger.info("f_vjp_batch: ", type(args), type(batch_axes))
             y_bar = args[-1]  # noqa: F841
             # concrete implemenatation provides native batching
+            invar = "Current function [A]"
             term_v, term_v_sens = jaxify_solve(
+                invar,
                 *args[:-1],
             )
             term_v_sens = np.array(term_v_sens)

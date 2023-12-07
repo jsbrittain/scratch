@@ -103,32 +103,99 @@ print(f"\nTesting with input: {x=}")
 
 # Scalar evaluation
 
-print("\neval with non-scalar t:")  # calls f
-print(f(t_eval, inputs))
-
 k = 5
-print("\neval with scalar t:")  # calls f
-print(f(t_eval[k], inputs))
+print("\nf (scalar):")  # calls f
+out = f(t_eval[k], inputs)
+print(out)
+assert np.allclose(out, np.array([sim[outvar](t_eval[k]) for outvar in output_variables]).transpose())
 
-print("\neval with vmap over t:")  # calls f
-vmap_f = jax.vmap(f, in_axes=in_axes)
-print(vmap_f(t_eval, x))
+print("\nf (vector):")  # calls f
+out = f(t_eval, inputs)
+print(out)
+assert np.allclose(out, np.array([sim[outvar](t_eval) for outvar in output_variables]).transpose())
 
-# print("\njacfwd scalar:")  # calls f
-# print(jax.jacfwd(f)(t_eval[k], x))
+print("\nf (vmap):")  # calls f
+out = jax.vmap(f, in_axes=in_axes)(t_eval, x)
+print(out)
+assert np.allclose(out, np.array([sim[outvar](t_eval) for outvar in output_variables]).transpose())
 
-# print("\njacfwd vector:")  # calls f
-# print(jax.jacfwd(f)(t_eval, x))
+# Per variable checks
+for outvar in output_variables:
+    print("\nget_var (scalar)")
+    out = idaklu_solver.get_var(f, outvar)(t_eval[k], x)
+    print(out)
+    assert np.allclose(out, sim[outvar](t_eval[k]))
 
-# print("\njacrev scalar:")  # calls f
-# print(jax.jacrev(f)(t_eval[k], x))
+    print("\nget_var (vector)")
+    out = idaklu_solver.get_var(f, outvar)(t_eval, x)
+    print(out)
+    assert np.allclose(out, sim[outvar](t_eval))
 
-# print("\njacrev vector:")  # calls f
-# print(jax.jacrev(f)(t_eval, x))
+    print("\nget_var (vmap)")
+    out = jax.vmap(
+        idaklu_solver.get_var(f, outvar),
+        in_axes=(0, None),
+    )(t_eval, x)
+    print(out)
+    assert np.allclose(out, sim[outvar](t_eval))
 
-# print("\ngrad with scalar t:")  # calls f
-# g = jax.grad(f, argnums=0)(t_eval[k], x)
-# print(g)
+    # jaxfwd and jacrev both return complete Jacobians (evaluated internally either
+    # column-wise, or row-wise). The Jacobian returned is (n_out[rows], n_in[cols]).
+    # e.g. (2 x 3) for 2 outputs and 3 inputs.
+    print("\njac_fwd (scalar)")
+    out = jax.jacfwd(f)(t_eval[k], x)
+    print(out)
+    check = np.array([sim[outvar].sensitivities[invar][k] for invar in x for outvar in output_variables]).transpose()
+    print(check)
+    assert np.allclose(out, check)
+
+    if False:
+        print("\njac_fwd (vmap)")
+        out = jax.vmap(
+            jax.jacfwd(f),
+            in_axes=(0, None),
+        )(t_eval, x)
+        print(out)
+        # assert np.allclose(out, sim[outvar](t_eval))
+
+        print("\njac_rev (vmap)")
+        out = jax.vmap(
+            jax.jacrev(f),
+            in_axes=(0, None),
+        )(t_eval, x)
+        print(out)
+        # assert np.allclose(out, sim[outvar](t_eval))
+
+        # Per input checks
+        for invar in inputs:
+            print("\ngrad get_var (vmap)")
+            out = jax.vmap(
+                jax.grad(idaklu_solver.get_var(f, outvar)),
+                in_axes=(0, None),
+            )(t_eval, x)
+            print(out)
+            assert np.allclose(out, sim[outvar].sensitivities[invar])
+
+exit(0)
+
+############
+
+
+    # print("\njacfwd scalar:")  # calls f
+    # print(jax.jacfwd(f)(t_eval[k], x))
+
+    # print("\njacfwd vector:")  # calls f
+    # print(jax.jacfwd(f)(t_eval, x))
+
+    # print("\njacrev scalar:")  # calls f
+    # print(jax.jacrev(f)(t_eval[k], x))
+
+    # print("\njacrev vector:")  # calls f
+    # print(jax.jacrev(f)(t_eval, x))
+
+    # print("\ngrad with scalar t:")  # calls f
+    # g = jax.grad(f, argnums=0)(t_eval[k], x)
+    # print(g)
 
 print('get_var (scalar)')
 for outvar in output_variables:
@@ -186,33 +253,31 @@ check = np.array([sim[outvar](t_eval) for outvar in output_variables]).transpose
 if check_asserts:
     assert np.allclose(out, check)
 
-if False:
-    print('grad get_var (scalar)')
-    for outvar in output_variables:
-        for invar in inputs:
-            out = jax.grad(
-                idaklu_solver.get_var(f, outvar),
-                argnums=0,
-            )(t_eval[k], x)
-            print(f' {outvar=} {invar=} {out=}')
-            if check_asserts:
-                assert np.allclose(out, sim[outvar].sensitivities[invar][k])
+print('grad get_var (scalar)')
+for outvar in output_variables:
+    for invar in inputs:
+        out = jax.grad(
+            idaklu_solver.get_var(f, outvar),
+            argnums=0,
+        )(t_eval[k], x)
+        print(f' {outvar=} {invar=} {out=}')
+        if check_asserts:
+            assert np.allclose(out, sim[outvar].sensitivities[invar][k])
 
 print('grad get_var (vmap)')
 for outvar in output_variables:
     for invar in inputs:
+        out = f(t_eval, x)
+        print(out)
+        out = idaklu_solver.get_var(f, outvar)(t_eval, x)
+        print(out)
         out = jax.vmap(
-            jax.grad(
-                idaklu_solver.get_var(f, outvar),
-                argnums=idaklu_solver.input_index(invar),
-            ),
-            in_axes=(0, None),
+            idaklu_solver.get_var(f, outvar),
+            in_axes=(0, None)
         )(t_eval, x)
-        print(f' {outvar=} {invar=} {out=}')
-        check = np.array(sim[outvar].sensitivities[invar]).transpose()
-        print(check)
-        if check_asserts:
-            assert np.allclose(out, check)
+        print(out)
+
+exit(0)
 
 # print('value_and_grad get_var (scalar)')
 # for outvar in output_variables:

@@ -40,7 +40,7 @@ def f_batch(args, batch_axes):
     if batch_axes[0] is not None:
         out = list(map(foo, t))
     else:
-        raise Exception("not implemented")
+        raise Exception("Not implemented")
     return jnp.stack(out), 0
 
 
@@ -74,19 +74,11 @@ def foo_jvp_batch(args, batch_axes):
     if batch_axes[0] is not None:
         for a in args[0]:
             _, outa = foo_jvp((a,), args[1:])
-            # if hasattr(outa, 'val'):
-            #     outa = outa.val
             out.append(outa)
-        # out = onp.array(out)
-        # out = onp.array(list(map(lambda t: foo_jvp((t,), args[1:]), args[0])))
     elif batch_axes[1] is not None:
         for a in args[1]:
             _, outa = foo_jvp((args[0],), (a,))
-            # if hasattr(outa, 'val'):
-            #     outa = outa.val
             out.append(outa)
-        # out = onp.array(out)
-        # out = onp.array(list(map(lambda a: foo_jvp((args[0],), (a,)), args[1])))
     else:
         print('batch_axes = ', batch_axes)
         raise Exception("not implemented")
@@ -109,6 +101,10 @@ ad.primitive_transposes[foo_jvp_p] = foo_jvp_transpose
 foo_vjp_p = jax.core.Primitive('foo_vjp')
 
 
+def foo_vjp(x):
+    return foo_vjp_p.bind(x)
+
+
 @foo_vjp_p.def_impl
 def foo_vjp_impl(x, y_bar):
     return y_bar * onp.cos(onp.sin(x)) * onp.cos(x)
@@ -122,24 +118,15 @@ def foo_vjp_batch(args, batch_axes):
     x, y_bar = args
     out = []
     if batch_axes[0] is not None:
-        print('  batch over time')
+        # batch over time
         out = list(map(lambda x1: foo_vjp_p.bind(x1, y_bar), x))
     elif batch_axes[1] is not None:
-        print('  batch over tangents')
+        # batch over tangents
         for y in y_bar:
             outy = foo_vjp_p.bind(x, y)
-            # if hasattr(outy, 'val'):
-            #     outy = outy.val
-            # print('  outy: ', outy)
             out.append(outy)
-        # out = onp.array(out)
-        # if out.ndim == 2:
-        #     return out.reshape((out.shape[1], out.shape[0])), 1
     else:
         raise ValueError('must be at least one non-None batch axis')
-
-    # out = onp.array(list(map(lambda x: foo_vjp_p.bind(x, y_bar), x)))
-
     return jnp.stack(out), 0
 
 
@@ -160,11 +147,11 @@ print(jax.vmap(jax.jacfwd(foo))(onp.arange(20, dtype='float64')))
 print('\n\njacrev')
 print(jax.jacrev(foo)(3.))
 
+print('\n\njacrev vmap')
+print(jax.vmap(jax.jacrev(foo))(onp.arange(20, dtype='float64')))
+
 print('\n\ngrad')
 print(jax.grad(foo)(3.))
 
 print('\n\ngrad vmap')
 print(jax.vmap(jax.grad(foo))(onp.arange(20, dtype='float64')))
-
-print('\n\njacrev vmap')
-print(jax.vmap(jax.jacrev(foo))(onp.arange(20, dtype='float64')))

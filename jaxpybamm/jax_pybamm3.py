@@ -14,6 +14,7 @@ from jax.interpreters import mlir
 from jax.interpreters import batching
 from jax.interpreters.mlir import custom_call
 from jax._src.lib.mlir.dialects import hlo
+from jax.tree_util import tree_flatten, tree_unflatten
 
 from jax.lib import xla_client
 import importlib.util
@@ -28,7 +29,7 @@ for _name, _value in cpu_ops.registrations().items():
     xla_client.register_custom_call_target(_name, _value, platform="cpu")
 
 
-num_inputs = 1
+num_inputs = 2
 if num_inputs == 0:
     inputs = {}
 elif num_inputs == 1:
@@ -104,6 +105,7 @@ print(f"\nTesting with input: {x=}")
 # Scalar evaluation
 
 k = 5
+
 print("\nf (scalar):")  # calls f
 out = f(t_eval[k], inputs)
 print(out)
@@ -116,6 +118,25 @@ assert np.allclose(out, np.array([sim[outvar](t_eval) for outvar in output_varia
 
 print("\nf (vmap):")  # calls f
 out = jax.vmap(f, in_axes=in_axes)(t_eval, x)
+print(out)
+assert np.allclose(out, np.array([sim[outvar](t_eval) for outvar in output_variables]).transpose())
+
+# Get all vars (should mirror above outputs)
+print("\nget_vars (scalar)")
+out = idaklu_solver.get_vars(f, output_variables)(t_eval[k], x)
+print(out)
+assert np.allclose(out, np.array([sim[outvar](t_eval[k]) for outvar in output_variables]).transpose())
+
+print("\nget_vars (vector)")
+out = idaklu_solver.get_vars(f, output_variables)(t_eval, x)
+print(out)
+assert np.allclose(out, np.array([sim[outvar](t_eval) for outvar in output_variables]).transpose())
+
+print("\nget_vars (vmap)")
+out = jax.vmap(
+    idaklu_solver.get_vars(f, output_variables),
+    in_axes=(0, None),
+)(t_eval, x)
 print(out)
 assert np.allclose(out, np.array([sim[outvar](t_eval) for outvar in output_variables]).transpose())
 
@@ -139,42 +160,50 @@ for outvar in output_variables:
     print(out)
     assert np.allclose(out, sim[outvar](t_eval))
 
-    # jaxfwd and jacrev both return complete Jacobians (evaluated internally either
-    # column-wise, or row-wise). The Jacobian returned is (n_out[rows], n_in[cols]).
-    # e.g. (2 x 3) for 2 outputs and 3 inputs.
-    print("\njac_fwd (scalar)")
-    out = jax.jacfwd(f)(t_eval[k], x)
-    print(out)
-    check = np.array([sim[outvar].sensitivities[invar][k] for invar in x for outvar in output_variables]).transpose()
-    print(check)
-    assert np.allclose(out, check)
+# Differentiation rules
 
-    if False:
-        print("\njac_fwd (vmap)")
-        out = jax.vmap(
-            jax.jacfwd(f),
-            in_axes=(0, None),
-        )(t_eval, x)
-        print(out)
-        # assert np.allclose(out, sim[outvar](t_eval))
+print("\njac_fwd (scalar)")
+out = jax.jacfwd(f, argnums=1)(t_eval[k], x)
+print(out)
+flat_out, _ = tree_flatten(out)
+flat_out = np.array([f for f in flat_out]).flatten()
+check = np.array([sim[outvar].sensitivities[invar][k] for invar in x for outvar in output_variables]).transpose()
+print(check)
+assert np.allclose(flat_out, check.flatten())
 
-        print("\njac_rev (vmap)")
-        out = jax.vmap(
-            jax.jacrev(f),
-            in_axes=(0, None),
-        )(t_eval, x)
-        print(out)
-        # assert np.allclose(out, sim[outvar](t_eval))
+print("\njac_fwd (vmap)")
+out = jax.vmap(
+    jax.jacfwd(f, argnums=1),
+    in_axes=(0, None),
+)(t_eval, x)
+print(out)
+flat_out, _ = tree_flatten(out)
+flat_out = np.concatenate(np.array([f for f in flat_out]), 1).transpose().flatten()
+check = np.array([sim[outvar].sensitivities[invar] for invar in x for outvar in output_variables])
+print(check)
+assert np.allclose(flat_out, check.flatten())
 
-        # Per input checks
-        for invar in inputs:
-            print("\ngrad get_var (vmap)")
-            out = jax.vmap(
-                jax.grad(idaklu_solver.get_var(f, outvar)),
-                in_axes=(0, None),
-            )(t_eval, x)
-            print(out)
-            assert np.allclose(out, sim[outvar].sensitivities[invar])
+print("\njac_rev (scalar)")
+_, argtree = tree_flatten((1., inputs))
+out = jax.jacrev(f, argnums=1)(t_eval[k], x)
+print(out)
+flat_out, _ = tree_flatten(out)
+flat_out = np.array([f for f in flat_out]).flatten()
+check = np.array([sim[outvar].sensitivities[invar][k] for invar in x for outvar in output_variables]).transpose()
+print(check)
+assert np.allclose(flat_out, check.flatten())
+
+print("\njac_rev (vmap)")
+out = jax.vmap(
+    jax.jacrev(f, argnums=1),
+    in_axes=(0, None),
+)(t_eval, x)
+print(out)
+flat_out, _ = tree_flatten(out)
+flat_out = np.concatenate(np.array([f for f in flat_out]), 1).transpose().flatten()
+check = np.array([sim[outvar].sensitivities[invar] for invar in x for outvar in output_variables])
+print(check.flatten())
+assert np.allclose(flat_out, check.flatten())
 
 exit(0)
 

@@ -693,6 +693,7 @@ class IDAKLUSolver(pybamm.BaseSolver):
         """Helper function to extract a single variable from the jaxified expression"""
 
         def f_isolated(*args, **kwargs):
+            self.jax_n_out = 1
             out = f(*args, **kwargs)
             index = self.jaxify_output_variables.index(varname)
             if out.ndim == 0:
@@ -709,7 +710,7 @@ class IDAKLUSolver(pybamm.BaseSolver):
         """Helper function to extract multiple variables from the jaxified expression"""
 
         def f_isolated(*args, **kwargs):
-            return jnp.array(
+            out = jnp.array(
                 list(
                     map(
                         lambda varname: self.get_var(f, varname)(*args, **kwargs),
@@ -717,6 +718,9 @@ class IDAKLUSolver(pybamm.BaseSolver):
                     )
                 )
             ).transpose()
+            # Overwrite output variable count
+            self.jax_n_out = len(varnames)
+            return out
 
         return f_isolated
 
@@ -734,6 +738,7 @@ class IDAKLUSolver(pybamm.BaseSolver):
         solver = self
         self.jaxify_output_variables = output_variables
         self.jax_inputs = inputs
+        self.jax_n_out = len(output_variables)
 
         cpu_ops_spec = importlib.util.find_spec("idaklu_jax.cpu_ops")
         if cpu_ops_spec:
@@ -815,6 +820,7 @@ class IDAKLUSolver(pybamm.BaseSolver):
             Takes abstractions of inputs, returned ShapedArray for result of primitive
             """
             logging.info("f_abstract_eval")
+            raise "AAA"
             y_aval = jax.core.ShapedArray((*t.shape, len(output_variables)), t.dtype)
             return y_aval
 
@@ -941,10 +947,8 @@ class IDAKLUSolver(pybamm.BaseSolver):
             primals = args[: len(args) // 2]
             tangents = args[len(args) // 2 :]
             t = primals[0]
-            #out = jax.core.ShapedArray(t.shape, t.dtype)
-            out = jax.core.ShapedArray((len(output_variables),), t.dtype)
-            #out = jax.core.ShapedArray((*t.shape, len(output_variables)), t.dtype)
-            print('t-shape: ', (*t.shape, len(output_variables)))
+            n = len(output_variables)
+            out = jax.core.ShapedArray((n,), t.dtype)
             logging.info("<- f_jvp_abstract_eval")
             return out
 

@@ -346,9 +346,9 @@ if __name__ == "__main__":
         test_jacfwd_scalar_getvars,
         test_jacfwd_vmap_getvars,
         test_jacrev_scalar_getvars,
-        # test_jacrev_vmap_getvars,
-        # test_grad_scalar_getvar,
-        # test_grad_vmap_getvar,
+        test_jacrev_vmap_getvars,
+        test_grad_scalar_getvar,
+        test_grad_vmap_getvar,
     ]
 
     for test in testlist:

@@ -941,7 +941,10 @@ class IDAKLUSolver(pybamm.BaseSolver):
             primals = args[: len(args) // 2]
             tangents = args[len(args) // 2 :]
             t = primals[0]
-            out = jax.core.ShapedArray(t.shape, t.dtype)
+            #out = jax.core.ShapedArray(t.shape, t.dtype)
+            out = jax.core.ShapedArray((len(output_variables),), t.dtype)
+            #out = jax.core.ShapedArray((*t.shape, len(output_variables)), t.dtype)
+            print('t-shape: ', (*t.shape, len(output_variables)))
             logging.info("<- f_jvp_abstract_eval")
             return out
 
@@ -952,9 +955,10 @@ class IDAKLUSolver(pybamm.BaseSolver):
             tangents = args[len(args) // 2 :]
 
             tangents_out = []
+            #if y_bar.ndim <= 1:
+            #    y_bar = [y_bar]
             for y in y_bar:
                 tangents_out.append(f_vjp(y, *primals))
-
             out = None, *([None] * len(tangents_out)), None, *tangents_out
             logging.info("<- f_jvp_transpose: ", out)
             return out
@@ -969,9 +973,22 @@ class IDAKLUSolver(pybamm.BaseSolver):
         @f_vjp_p.def_impl
         def f_vjp_impl(y_bar, *primals):
             logging.info("f_vjp_p_impl: ")
+            print('f_vjp_p_impl: ', type(y_bar), type(primals))
+            print('  y_bar: ', y_bar)
+            print('  primals: ', primals)
             t = primals[0]
             inputs = primals[1:]
-            index = [k for k, yb in enumerate(y_bar) if yb > 0.0][0]
+            if y_bar.ndim == 0:
+                if y_bar == 0.0:
+                    return jnp.zeros((len(output_variables),))
+                else:
+                    index = 0
+            else:
+                index = [k for k, yb in enumerate(y_bar) if yb > 0.0]
+                if len(index) > 0:
+                    index = index[0]
+                else:
+                    return jnp.zeros((len(output_variables),))
             invar = list(self.jax_inputs.keys())[index]
             y_dot = jaxify_solve(t, invar, *inputs)
             return y_dot

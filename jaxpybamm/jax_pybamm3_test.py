@@ -2,23 +2,13 @@ import pybamm
 import numpy as np
 import scipy
 import jax
+import pytest
+import logging
 from jax.interpreters import ad
 from jax.interpreters.mlir import custom_call
 from jax._src.lib.mlir.dialects import hlo
 from jax.tree_util import tree_flatten, tree_unflatten
-
 from jax.lib import xla_client
-import importlib.util
-
-cpu_ops_spec = importlib.util.find_spec("idaklu_jax.cpu_ops")
-if cpu_ops_spec:
-    cpu_ops = importlib.util.module_from_spec(cpu_ops_spec)
-    if cpu_ops_spec.loader:
-        cpu_ops_spec.loader.exec_module(cpu_ops)
-
-for _name, _value in cpu_ops.registrations().items():
-    xla_client.register_custom_call_target(_name, _value, platform="cpu")
-
 
 num_inputs = 2
 if num_inputs == 0:
@@ -78,10 +68,10 @@ f_jax = idaklu_solver.jaxify(
 f = f_jax
 x = inputs
 
-d_axes = None
-in_axes = (0, d_axes)
+in_axes = (0, None)
 
 print(f"\nTesting with input: {x=}")
+# logging.basicConfig(level=logging.INFO)
 
 # Scalar evaluation
 
@@ -89,7 +79,7 @@ k = 5
 
 
 def test_f_scalar():
-    print("\nf (scalar):")  # calls f
+    print("\nf (scalar):")
     out = f(t_eval[k], inputs)
     print(out)
     assert np.allclose(
@@ -99,7 +89,7 @@ def test_f_scalar():
 
 
 def test_f_vector():
-    print("\nf (vector):")  # calls f
+    print("\nf (vector):")
     out = f(t_eval, inputs)
     print(out)
     assert np.allclose(
@@ -108,7 +98,7 @@ def test_f_vector():
 
 
 def test_f_vmap():
-    print("\nf (vmap):")  # calls f
+    print("\nf (vmap):")
     out = jax.vmap(f, in_axes=in_axes)(t_eval, x)
     print(out)
     assert np.allclose(
@@ -151,7 +141,7 @@ def test_getvars_vmap():
 def test_getvar_scalar():
     # Per variable checks
     for outvar in output_variables:
-        print("\nget_var (scalar)")
+        print(f"\nget_var (scalar): {outvar}")
         out = idaklu_solver.get_var(f, outvar)(t_eval[k], x)
         print(out)
         assert np.allclose(out, sim[outvar](t_eval[k]))
@@ -159,7 +149,7 @@ def test_getvar_scalar():
 
 def test_getvar_vector():
     for outvar in output_variables:
-        print("\nget_var (vector)")
+        print(f"\nget_var (vector): {outvar}")
         out = idaklu_solver.get_var(f, outvar)(t_eval, x)
         print(out)
         assert np.allclose(out, sim[outvar](t_eval))
@@ -167,7 +157,7 @@ def test_getvar_vector():
 
 def test_getvar_vmap():
     for outvar in output_variables:
-        print("\nget_var (vmap)")
+        print(f"\nget_var (vmap): {outvar}")
         out = jax.vmap(
             idaklu_solver.get_var(f, outvar),
             in_axes=(0, None),
@@ -192,7 +182,6 @@ def test_jacfwd_scalar():
             for outvar in output_variables
         ]
     ).transpose()
-    print(check)
     assert np.allclose(flat_out, check.flatten())
 
 
@@ -208,13 +197,11 @@ def test_jacfwd_vmap():
     check = np.array(
         [sim[outvar].sensitivities[invar] for invar in x for outvar in output_variables]
     )
-    print(check)
     assert np.allclose(flat_out, check.flatten())
 
 
 def test_jacrev_scalar():
     print("\njac_rev (scalar)")
-    _, argtree = tree_flatten((1.0, inputs))
     out = jax.jacrev(f, argnums=1)(t_eval[k], x)
     print(out)
     flat_out, _ = tree_flatten(out)
@@ -226,7 +213,6 @@ def test_jacrev_scalar():
             for outvar in output_variables
         ]
     ).transpose()
-    print(check)
     assert np.allclose(flat_out, check.flatten())
 
 
@@ -242,7 +228,6 @@ def test_jacrev_vmap():
     check = np.array(
         [sim[outvar].sensitivities[invar] for invar in x for outvar in output_variables]
     )
-    print(check.flatten())
     assert np.allclose(flat_out, check.flatten())
 
 
@@ -264,7 +249,6 @@ def test_jacfwd_scalar_getvars():
             for outvar in output_variables
         ]
     ).transpose()
-    print(check)
     assert np.allclose(flat_out, check.flatten())
 
 
@@ -280,13 +264,11 @@ def test_jacfwd_vmap_getvars():
     check = np.array(
         [sim[outvar].sensitivities[invar] for invar in x for outvar in output_variables]
     )
-    print(check)
     assert np.allclose(flat_out, check.flatten())
 
 
 def test_jacrev_scalar_getvars():
-    print("\njac_rev (scalar)")
-    _, argtree = tree_flatten((1.0, inputs))
+    print("\njac_rev (scalar) getvars")
     out = jax.jacrev(idaklu_solver.get_vars(f, output_variables), argnums=1)(
         t_eval[k], x
     )
@@ -300,12 +282,11 @@ def test_jacrev_scalar_getvars():
             for outvar in output_variables
         ]
     ).transpose()
-    print(check)
     assert np.allclose(flat_out, check.flatten())
 
 
 def test_jacrev_vmap_getvars():
-    print("\njac_rev (vmap)")
+    print("\njac_rev (vmap) getvars")
     out = jax.vmap(
         jax.jacrev(idaklu_solver.get_vars(f, output_variables), argnums=1),
         in_axes=(0, None),
@@ -316,28 +297,27 @@ def test_jacrev_vmap_getvars():
     check = np.array(
         [sim[outvar].sensitivities[invar] for invar in x for outvar in output_variables]
     )
-    print(check.flatten())
     assert np.allclose(flat_out, check.flatten())
 
 
 # Per variable checks
 
 
-def test_grad_scalar_getvars():
+def test_grad_scalar_getvar():
     for outvar in output_variables:
-        print("\ngrad (scalar)")
+        print(f"\ngrad (scalar) getvar: {outvar}")
         out = jax.grad(
             idaklu_solver.get_var(f, outvar),
             argnums=1,
         )(
             t_eval[k], x
-        )  # output should be a dictionary of inputs, providing diffs wrt the single output
+        )  # output should be a dictionary of inputs
         print(out)
 
 
-def test_grad_vmap_getvars():
+def test_grad_vmap_getvar():
     for outvar in output_variables:
-        print("\ngrad (vmap)")
+        print(f"\ngrad (vmap) getvars: {outvar}")
         out = jax.vmap(
             jax.grad(
                 idaklu_solver.get_var(f, outvar),
@@ -346,3 +326,31 @@ def test_grad_vmap_getvars():
             in_axes=(0, None),
         )(t_eval, x)
         print(out)
+
+
+if __name__ == "__main__":
+    testlist = [
+        test_f_scalar,
+        test_f_vector,
+        test_f_vmap,
+        test_getvars_scalar,
+        test_getvars_vector,
+        test_getvars_vmap,
+        test_getvar_scalar,
+        test_getvar_vector,
+        test_getvar_vmap,
+        test_jacfwd_scalar,
+        test_jacfwd_vmap,
+        test_jacrev_scalar,
+        test_jacrev_vmap,
+        test_jacfwd_scalar_getvars,
+        test_jacfwd_vmap_getvars,
+        test_jacrev_scalar_getvars,
+        # test_jacrev_vmap_getvars,
+        # test_grad_scalar_getvar,
+        # test_grad_vmap_getvar,
+    ]
+
+    for test in testlist:
+        print(f"\nRunning test: {test.__name__}")
+        test()

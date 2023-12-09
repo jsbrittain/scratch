@@ -3,7 +3,7 @@ import numpy as onp
 from jax.interpreters import ad
 
 # Make a Primitive
-foo_p = jax.core.Primitive('foo')
+foo_p = jax.core.Primitive("foo")
 
 
 def foo(x):
@@ -28,7 +28,7 @@ def foo_jvp(primals, tangents):
 
 ad.primitive_jvps[foo_p] = foo_jvp
 
-foo_jvp_p = jax.core.Primitive('foo_jvp')
+foo_jvp_p = jax.core.Primitive("foo_jvp")
 
 
 # We could define an impl rule for foo_jvp_p, and thus get first-order
@@ -51,16 +51,17 @@ def foo_jvp_transpose(y_bar, x, x_dot_dummy):
 ad.primitive_transposes[foo_jvp_p] = foo_jvp_transpose
 
 # Finally, let's write the vjp rule as a primitive.
-foo_vjp_p = jax.core.Primitive('foo_vjp')
+foo_vjp_p = jax.core.Primitive("foo_vjp")
 
 
 @foo_vjp_p.def_impl
 def foo_vjp_impl(x, y_bar):
     return y_bar * onp.cos(onp.sin(x)) * onp.cos(x)
 
+
 ###
 
 
 # Let's test it!
 
-print(jax.grad(foo)(3.))
+print(jax.grad(foo)(3.0))

@@ -627,9 +627,11 @@ def jaxsolver(
         inputs = kwargs.get("inputs")
         return (
             [sim[out](t_eval) for out in solver.output_variables],
-            [sim[out].sensitivities[invar]
+            [
+                sim[out].sensitivities[invar]
                 for out in solver.output_variables
-                for invar in inputs.keys()]
+                for invar in inputs.keys()
+            ],
         )
     else:
         return [sim[var](t_eval) for var in solver.output_variables]
@@ -637,6 +639,7 @@ def jaxsolver(
 
 # Solve using IDAKLU directly
 if True:
+
     def fit_fcn(params):
         def sse(t_eval, inputs, data):
             return jnp.sum((vec_fcn(t_eval, inputs) - data) ** 2, 0)

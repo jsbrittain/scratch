@@ -104,6 +104,7 @@ def isolate_var(fcn, varname):
         if out.shape == (1,):
             out = out[0]  # scalar
         return out
+
     return impl
 
 
@@ -160,11 +161,14 @@ def f_impl(t, input_values, *, invar=None):
         # Return sensitivities
         tk = [k for k, tval in enumerate(t_eval) if tval >= t[0] and tval <= t[-1]]
         out = jnp.reshape(
-            jnp.array([
-                jnp.array(sim[outvar].sensitivities[invar][tk])
-                for outvar in output_variables
-            ]).transpose(),
-            out.shape)
+            jnp.array(
+                [
+                    jnp.array(sim[outvar].sensitivities[invar][tk])
+                    for outvar in output_variables
+                ]
+            ).transpose(),
+            out.shape,
+        )
 
     return out
 
@@ -173,7 +177,9 @@ def f_batch(args, batch_axes, **kwargs):
     tvec = args[0]
     if tvec.ndim == 0:
         tvec = jnp.array([tvec])
-    out = jnp.array(list(map(lambda t: f_p.bind(t, *args[1:], **kwargs), tvec))).squeeze()
+    out = jnp.array(
+        list(map(lambda t: f_p.bind(t, *args[1:], **kwargs), tvec))
+    ).squeeze()
     return out, batch_axes[0]
 
 
@@ -191,15 +197,13 @@ ad.primitive_jvps[f_p] = f_jvp
 
 
 def f_transpose(y_bar, *args):
-    print('f_transpose')
+    print("f_transpose")
     primals = args[: len(args) // 2]
     tangents = args[len(args) // 2 :]  # noqa: F841
     invar = "Current function [A]"
     x_bar = f_p.bind(*primals, invar=invar)
     primals_out = (None,) * len(primals)
-    tangents_out = jnp.dot(y_bar, x_bar), *(
-        (None,) * (len(primals) - 1)
-    )
+    tangents_out = jnp.dot(y_bar, x_bar), *((None,) * (len(primals) - 1))
     return *primals_out, *tangents_out
 
 
@@ -245,7 +249,9 @@ print(out)
 
 print("\njacfwd (vmap)")  # SAME VALUES FOR EACH INPUT
 outvar = output_variables[0]
-out = jax.vmap(jax.jacfwd(isolate_var(f, outvar), argnums=1), in_axes=(0, None))(t_eval, inputs)
+out = jax.vmap(jax.jacfwd(isolate_var(f, outvar), argnums=1), in_axes=(0, None))(
+    t_eval, inputs
+)
 print(out)
 
 print("\njacrev (scalar)")  # ALL ZEROS
@@ -255,7 +261,9 @@ print(out)
 
 print("\njacrev (vmap)")  # ALL ZEROS
 outvar = output_variables[0]
-out = jax.vmap(jax.jacrev(isolate_var(f, outvar), argnums=1), in_axes=(0, None))(t_eval, inputs)
+out = jax.vmap(jax.jacrev(isolate_var(f, outvar), argnums=1), in_axes=(0, None))(
+    t_eval, inputs
+)
 print(out)
 
 print("\ngrad (scalar)")  # ALL ZEROS
@@ -265,12 +273,16 @@ print(out)
 
 print("\ngrad (vmap)")  # ALL ZEROS
 outvar = output_variables[0]
-out = jax.vmap(jax.grad(isolate_var(f, outvar), argnums=1), in_axes=(0, None))(t_eval, inputs)
+out = jax.vmap(jax.grad(isolate_var(f, outvar), argnums=1), in_axes=(0, None))(
+    t_eval, inputs
+)
 print(out)
 
 # Show actual sensitivities
 print("\nActual sensitivities")
 outvar = output_variables[0]
-check = jnp.array([jnp.array(sim[outvar].sensitivities[invar]) for invar in inputs]).squeeze()
+check = jnp.array(
+    [jnp.array(sim[outvar].sensitivities[invar]) for invar in inputs]
+).squeeze()
 print(check)
 # assert np.allclose(out, check)

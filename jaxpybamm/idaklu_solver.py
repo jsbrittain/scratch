@@ -6,6 +6,7 @@ import pybamm
 import numpy as np
 import numbers
 import scipy.sparse as sparse
+import logging
 
 import jax
 from jax import lax
@@ -293,10 +294,14 @@ class IDAKLUSolver(pybamm.BaseSolver):
                 # Convert derivative functions for sensitivities
                 if (len(inputs) > 0) and (model.calculate_sensitivities):
                     self.dvar_dy_idaklu_fcns.append(
-                        idaklu.generate_function(self.computed_dvar_dy_fcns[key].serialize())
+                        idaklu.generate_function(
+                            self.computed_dvar_dy_fcns[key].serialize()
+                        )
                     )
                     self.dvar_dp_idaklu_fcns.append(
-                        idaklu.generate_function(self.computed_dvar_dp_fcns[key].serialize())
+                        idaklu.generate_function(
+                            self.computed_dvar_dp_fcns[key].serialize()
+                        )
                     )
 
         else:
@@ -686,24 +691,34 @@ class IDAKLUSolver(pybamm.BaseSolver):
 
     def get_var(self, f, varname):
         """Helper function to extract a single variable from the jaxified expression"""
+
         def f_isolated(*args, **kwargs):
             out = f(*args, **kwargs)
             index = self.jaxify_output_variables.index(varname)
-            if out.ndim > 1:
-                return out[:, index]
-            else:
+            if out.ndim == 0:
+                return out
+            elif out.ndim == 1:
+                print('f_isolated - out: ', out)
                 return out[index]
+            else:
+                return out[:, index]
+
         return f_isolated
 
     def get_vars(self, f, varnames):
         """Helper function to extract multiple variables from the jaxified expression"""
-        def f_isolated(*args, **kwargs):
-            return jnp.array(list(map(lambda varname: self.get_var(f, varname)(*args, **kwargs), varnames))).transpose()
-        return f_isolated
 
-    def input_index(self, name):
-        """Helper function to get the index of an input variable"""
-        return list(self.jax_inputs.keys()).index(name)
+        def f_isolated(*args, **kwargs):
+            return jnp.array(
+                list(
+                    map(
+                        lambda varname: self.get_var(f, varname)(*args, **kwargs),
+                        varnames,
+                    )
+                )
+            ).transpose()
+
+        return f_isolated
 
     def jaxify(
         self,
@@ -729,55 +744,8 @@ class IDAKLUSolver(pybamm.BaseSolver):
         for _name, _value in cpu_ops.registrations().items():
             xla_client.register_custom_call_target(_name, _value, platform="cpu")
 
-        # Custom logger
-        class logger:
-            NONE = 0
-            INFO = 1
-            DEBUG = 2
-
-            level = NONE
-            logging_fcns = [print]
-
-            @classmethod
-            def setLevel(cls, level):
-                cls.level = level
-
-            @classmethod
-            def log(cls, *args, **kwargs):
-                for log_out in cls.logging_fcns:
-                    log_out("    ", args[0])
-                    for arg in args[1:]:
-                        log_out("      ", arg)
-
-            @classmethod
-            def info(cls, *args, **kwargs):
-                if cls.level >= cls.INFO:
-                    cls.log(*args, **kwargs)
-
-            @classmethod
-            def debug(cls, *args, **kwargs):
-                if cls.level >= cls.DEBUG:
-                    cls.log(*args, **kwargs)
-
-        logger.setLevel(logger.INFO)
-
-        def get_output_variables(sim, t, invar=None):
-            """Helper function to get the output variables"""
-            def transpose(x):
-                return x.transpose()
-            out = (
-                jnp.array([sim[outvar](t) for outvar in output_variables]),
-            )  # casadi.DM -> 2d -> 1d
-            if invar:
-                out = (*out,
-                    jnp.array([jnp.array(sim[outvar].sensitivities[invar]).squeeze()
-                        for outvar in output_variables])
-                )
-                return transpose(out[0]), transpose(out[1])
-            return transpose(out[0])
-
         def jaxify_solve(t, invar, *inputs_values):
-            logger.info("jaxify_solve: ", type(t))
+            logging.info("jaxify_solve: ", type(t))
             # Reconstruct dictionary of inputs
             d = inputs.copy()
             for ix, (k, v) in enumerate(inputs.items()):
@@ -798,10 +766,17 @@ class IDAKLUSolver(pybamm.BaseSolver):
             )
             if invar:
                 tk = np.argmin(abs(t_eval - t))
-                out = jnp.array([jnp.array(sim[outvar].sensitivities[invar][tk]) for outvar in output_variables]).squeeze()
+                out = jnp.array(
+                    [
+                        jnp.array(sim[outvar].sensitivities[invar][tk])
+                        for outvar in output_variables
+                    ]
+                ).squeeze()
                 return out
             else:
-                return jnp.array([np.array(sim[outvar](t)) for outvar in output_variables])
+                return jnp.array(
+                    [np.array(sim[outvar](t)) for outvar in output_variables]
+                )
 
         # JAX PRIMITIVE DEFINITION
 
@@ -815,7 +790,7 @@ class IDAKLUSolver(pybamm.BaseSolver):
                 inputs : dictionary of input values, e.g.
                          {'Current function [A]': 0.222, 'Separator porosity': 0.3}
             """
-            logger.info("f: ", type(t), type(inputs))
+            logging.info("f: ", type(t), type(inputs))
             flatargs, treedef = tree_flatten((t, inputs))
             if isinstance(t, list) or isinstance(t, np.ndarray):
                 # Map over temporal vector
@@ -823,17 +798,15 @@ class IDAKLUSolver(pybamm.BaseSolver):
             else:
                 # Scalar
                 out = f_p.bind(*flatargs)
-            logger.debug("f [exit]: ", (out))
+            logging.debug("f [exit]: ", (out))
             return out
 
         @f_p.def_impl
         def f_impl(t, *inputs):
             """Concrete implementation of Primitive"""
-            logger.info("f_impl")
-            logger.info("  t: ", type(t))
-            logger.info("  inputs: ", type(inputs))
+            logging.info("f_impl")
             term_v = jaxify_solve(t, None, *inputs)
-            logger.debug("f_impl [exit]: ", (type(term_v), term_v))
+            logging.debug("f_impl [exit]: ", (type(term_v), term_v))
             return term_v
 
         @f_p.def_abstract_eval
@@ -841,18 +814,15 @@ class IDAKLUSolver(pybamm.BaseSolver):
             """Abstract evaluation of Primitive
             Takes abstractions of inputs, returned ShapedArray for result of primitive
             """
-            logger.info("f_abstract_eval")
-            y_aval = jax.core.ShapedArray(
-                (*t.shape, len(output_variables)),
-                t.dtype
-            )
+            logging.info("f_abstract_eval")
+            y_aval = jax.core.ShapedArray((*t.shape, len(output_variables)), t.dtype)
             return y_aval
 
         def f_batch(args, batch_axes):
             """Batching rule for Primitive
             Takes batched inputs, returns batched outputs and batched axes
             """
-            logger.info("f_batch: ", type(args), type(batch_axes))
+            logging.info("f_batch: ", type(args), type(batch_axes))
             t = args[0]
             inputs = args[1:]
             if batch_axes[0] is not None and all([b is None for b in batch_axes[1:]]):
@@ -861,14 +831,16 @@ class IDAKLUSolver(pybamm.BaseSolver):
                     return f_p.bind(t, *inputs), None
                 return jnp.stack(list(map(lambda tp: f_p.bind(tp, *inputs), t))), 0
             else:
-                raise NotImplementedError(f"jaxify: batching not implemented for batch_axes = {batch_axes}")
+                raise NotImplementedError(
+                    f"jaxify: batching not implemented for batch_axes = {batch_axes}"
+                )
 
         batching.primitive_batchers[f_p] = f_batch
 
         # JVP / Forward-mode autodiff / J.v len(v)=num_inputs / len(return)=num_outputs
 
         def f_jvp(primals, tangents):
-            logger.info("f_jvp: ", *list(map(type, (*primals, *tangents))))
+            logging.info("f_jvp: ", *list(map(type, (*primals, *tangents))))
 
             # Deal with Zero tangents
             def make_zero(prim, tan):
@@ -883,36 +855,30 @@ class IDAKLUSolver(pybamm.BaseSolver):
                 *primals,
                 *zero_mapped_tangents,
             )
-            print(f'{y_dot=}')
-            logger.debug("f_jvp [exit]: ", (type(y), y), (type(y_dot), y_dot))
+            logging.debug("f_jvp [exit]: ", (type(y), y), (type(y_dot), y_dot))
             return y, y_dot
 
         ad.primitive_jvps[f_p] = f_jvp
+
         f_jvp_p = jax.core.Primitive("f_jvp")
 
         @f_jvp_p.def_impl
-        def f_jvp_p_eval(*args):
-            logger.info("f_jvp_p_eval: ", type(args))
+        def f_jvp_eval(*args):
+            logging.info("f_jvp_p_eval: ", type(args))
             primals = args[: len(args) // 2]
             tangents = args[len(args) // 2 :]
             t = primals[0]
             inputs = primals[1:]
 
             # Identify input variable to differentiate wrt
-            invar_index = [k for k, t in enumerate(tangents[1:]) if t > 0.][0]
+            invar_index = [k for k, t in enumerate(tangents[1:]) if t > 0.0][0]
             invar = list(self.jax_inputs.keys())[invar_index]
-            print(' about to solve:')
-            print('  t: ', t)
-            print('  invar: ', invar)
-            print('  inputs: ', inputs)
-            print('  tangents: ', tangents)
             y_dot = jaxify_solve(t, invar, *inputs)
-            print('  y_dot: ', y_dot)
 
             return y_dot
 
         def f_jvp_batch(args, batch_axes):
-            logger.info("f_jvp_batch: ", type(args), type(batch_axes))
+            logging.info("f_jvp_batch: ", type(args), type(batch_axes))
             primals = args[: len(args) // 2]
             tangents = args[len(args) // 2 :]
             batch_primals = batch_axes[: len(batch_axes) // 2]
@@ -928,62 +894,69 @@ class IDAKLUSolver(pybamm.BaseSolver):
                 inputs = primals[1:]
                 if t.ndim == 0:
                     return f_jvp_p.bind(t, *inputs), None
-                return jnp.stack(list(map(lambda tp: f_jvp_p.bind(tp, *inputs, *tangents), t))), 0
+                return (
+                    jnp.stack(
+                        list(map(lambda tp: f_jvp_p.bind(tp, *inputs, *tangents), t))
+                    ),
+                    0,
+                )
             elif (
                 batch_tangents[0] is not None
                 and all([b is None for b in batch_tangents[1:]])
                 and all([b is None for b in batch_primals])
             ):
                 # Batch over derivates wrt time
-                raise NotImplementedError("Taking the derivative with respect to time is not supported")
+                raise NotImplementedError(
+                    "Taking the derivative with respect to time is not supported"
+                )
             elif (
                 batch_tangents[0] is None
                 and any([b is not None for b in batch_tangents[1:]])
                 and all([b is None for b in batch_primals])
             ):
                 # Batch over (some combination of) inputs
-                batch_axis_indices = [i for i, b in enumerate(batch_tangents) if b is not None]
+                batch_axis_indices = [
+                    i for i, b in enumerate(batch_tangents) if b is not None
+                ]
                 out = []
                 for i in range(len(batch_axis_indices)):
                     tangents_item = list(tangents)
                     for k in range(len(batch_axis_indices)):
-                        tangents_item[batch_axis_indices[k]] = tangents[batch_axis_indices[k]][i]
+                        tangents_item[batch_axis_indices[k]] = tangents[
+                            batch_axis_indices[k]
+                        ][i]
                     out.append(f_jvp_p.bind(*primals, *tangents_item))
                 return jnp.stack(out), 0
             else:
-                raise NotImplementedError(f"f_jvp_batch: batching not implemented for batch_axes = {batch_axes}")
+                raise NotImplementedError(
+                    "f_jvp_batch: batching not implemented for batch_axes = "
+                    f"{batch_axes}"
+                )
 
         batching.primitive_batchers[f_jvp_p] = f_jvp_batch
 
         @f_jvp_p.def_abstract_eval
         def f_jvp_abstract_eval(*args):
-            print('f_jvp_abstract_eval')
-            print('  args: ', args)
-            primals = args[:len(args) // 2]
-            tangents = args[len(args) // 2:]
+            logging.info("f_jvp_abstract_eval")
+            primals = args[: len(args) // 2]
+            tangents = args[len(args) // 2 :]
             t = primals[0]
             out = jax.core.ShapedArray(t.shape, t.dtype)
-            print('<- f_jvp_abstract_eval')
+            logging.info("<- f_jvp_abstract_eval")
             return out
 
         def f_jvp_transpose(y_bar, *args):
-            print("f_jvp_transpose: ")
-            print("  y_bar: ", y_bar)
-            print("  args: ", args)
+            logging.info("f_jvp_transpose: ")
 
-            primals = args[:len(args) // 2]
-            tangents = args[len(args) // 2:]
+            primals = args[: len(args) // 2]
+            tangents = args[len(args) // 2 :]
 
             tangents_out = []
             for y in y_bar:
-                print('binding vjp with primals = ', primals)
-                tangents_out.append(
-                    f_vjp(y, *primals)
-                )
+                tangents_out.append(f_vjp(y, *primals))
 
-            print('  tangents_out: ', tangents_out)
             out = None, *([None] * len(tangents_out)), None, *tangents_out
-            print('<- f_jvp_transpose: ', out)
+            logging.info("<- f_jvp_transpose: ", out)
             return out
 
         ad.primitive_transposes[f_jvp_p] = f_jvp_transpose
@@ -994,31 +967,21 @@ class IDAKLUSolver(pybamm.BaseSolver):
             return f_vjp_p.bind(y_bar, *primals)
 
         @f_vjp_p.def_impl
-        def f_vjp_p_impl(y_bar, *primals):
-            print("f_vjp_p_impl: ")
-            print("  y_bar: ", y_bar)
+        def f_vjp_impl(y_bar, *primals):
+            logging.info("f_vjp_p_impl: ")
             t = primals[0]
             inputs = primals[1:]
-            index = [k for k, yb in enumerate(y_bar) if yb > 0.][0]
+            index = [k for k, yb in enumerate(y_bar) if yb > 0.0][0]
             invar = list(self.jax_inputs.keys())[index]
-            print('about to solve:')
-            print('  t: ', t)
-            print('  invar: ', invar)
-            print('  inputs: ', inputs)
             y_dot = jaxify_solve(t, invar, *inputs)
             return y_dot
 
-        def f_vjp_p_batch(args, batch_axes):
-            print('f_vjp_p_batch')
-            print('  args: ', args)
-            print('  batch_axes: ', batch_axes)
+        def f_vjp_batch(args, batch_axes):
+            logging.info("f_vjp_p_batch")
             y_bars, t, *inputs = args
             primals = (t, *inputs)
 
-            if (
-                batch_axes[0] is not None
-                and all([b is None for b in batch_axes[1:]])
-            ):
+            if batch_axes[0] is not None and all([b is None for b in batch_axes[1:]]):
                 # Batch over y_bar
                 if y_bars.ndim <= 1:
                     return jnp.stack(f_vjp(*args)), 0
@@ -1035,14 +998,16 @@ class IDAKLUSolver(pybamm.BaseSolver):
                 out = list(map(lambda yt: f_vjp(y_bars, yt, *inputs), t))
                 return jnp.stack(out), 0
             else:
-                raise Exception("Batch mode not supported for batch_axes = ", batch_axes)
+                raise Exception(
+                    "Batch mode not supported for batch_axes = ", batch_axes
+                )
 
-        batching.primitive_batchers[f_vjp_p] = f_vjp_p_batch
+        batching.primitive_batchers[f_vjp_p] = f_vjp_batch
 
         if False:
 
             def f_lowering_cpu(ctx, t, *inputs):
-                logger.info("jaxify_lowering: ")
+                logging.info("jaxify_lowering: ")
                 t_aval = ctx.avals_in[0]
                 np_dtype = t_aval.dtype
 
@@ -1074,84 +1039,10 @@ class IDAKLUSolver(pybamm.BaseSolver):
                 platform="cpu",
             )
 
-
-            @f_jvp_p.def_abstract_eval
-            def f_jvp_abstract_eval(*args):
-                logger.info("f_jvp_abstract_eval: ")
-                t_dot = args[len(args) // 2]
-                y_dot_aval = jax.core.ShapedArray(
-                    (len(output_variables), *t_dot.shape),
-                    t_dot.dtype
-                )
-                logger.debug("f_jvp_abstract_eval [exit]: ", (type(y_dot_aval), y_dot_aval))
-                return y_dot_aval
-
-            def f_jvp_transpose(y_bar, *args):
-                """JVP transpose rule
-
-                Args:
-                    y_bar: cotangent of the output of the primitive
-
-                """
-                logger.info("f_jvp_transpose: ")
-                # assert ad.is_undefined_primal(x_dot_dummy)
-                primals = args[: len(args) // 2]
-                tangents = args[len(args) // 2 :]  # noqa: F841
-                x_bar = f_vjp_p.bind(*primals, y_bar)
-                logger.debug("j_jvp_transpose [exit]: ", (type(x_bar), x_bar), (type(y_bar), y_bar))
-                primals_out = (None,) * len(primals)
-                t_out = jnp.dot(y_bar, x_bar)
-                if len(t_out.shape) > 0:
-                    t_out = t_out[0]
-                tangents_out = (  # TODO: Need to check what elements beyond [0] are
-                    t_out,
-                    (None,) * (len(primals) - 1)
-                )
-                return *primals_out, *tangents_out
-
-            ad.primitive_transposes[f_jvp_p] = f_jvp_transpose
-
-            # VJP / Reverse-mode autodiff / v^T.J len(v)=num_outputs / len(return)=num_inputs
-
-            f_vjp_p = jax.core.Primitive("f_vjp")
-
-            @f_vjp_p.def_impl
-            def f_vjp_impl(*args):
-                logger.info("f_vjp_impl: ", type(args))
-                y_bar = args[-1]  # noqa: F841
-                args = args[:-1]
-                logger.info("f_vjp_impl: ")
-                invar = "Current function [A]"
-                term_v, term_v_sens = jaxify_solve(invar, *args)
-                logger.debug("f_vjp_impl [exit]: ", (type(term_v_sens), term_v_sens))
-                return np.array(term_v_sens)
-
-            @f_vjp_p.def_abstract_eval
-            def f_vjp_abstract_eval(t, *args):
-                y_aval = jax.core.ShapedArray(
-                    (len(output_variables), *t.shape),
-                    t.dtype)
-                return y_aval
-
-            def f_vjp_batch(args, batch_axes):
-                logger.info("f_vjp_batch: ", type(args), type(batch_axes))
-                y_bar = args[-1]  # noqa: F841
-                # concrete implemenatation provides native batching
-                invar = "Current function [A]"
-                term_v, term_v_sens = jaxify_solve(
-                    invar,
-                    *args[:-1],
-                )
-                term_v_sens = np.array(term_v_sens)
-                logger.debug("f_vjp_batch [exit]: ", (type(term_v_sens), term_v_sens))
-                return term_v_sens, batch_axes[0]
-
-            batching.primitive_batchers[f_vjp_p] = f_vjp_batch
-
             # def f_lowering(ctx, mean_anom, ecc, *, platform="cpu"):
             def f_vjp_lowering_cpu(ctx, t, *inputs):
                 # TODO: This is just a copy of the f_p lowering function for now
-                logger.info("jaxify_lowering: ")
+                logging.info("jaxify_lowering: ")
                 t_aval = ctx.avals_in[0]
                 np_dtype = t_aval.dtype
 

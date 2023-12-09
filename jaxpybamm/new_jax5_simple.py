@@ -81,38 +81,41 @@ output_variables = [
 
 
 if False:
+
     def f(t, inputs):
-        return jnp.array([
-            2. * inputs[0],
-            3. * inputs[1],
-            inputs[0] * inputs[1],
-        ])
+        return jnp.array(
+            [
+                2.0 * inputs[0],
+                3.0 * inputs[1],
+                inputs[0] * inputs[1],
+            ]
+        )
 
     n_in = len(inputs)
     n_out = len(output_variables)
 
-    print('\nf')
+    print("\nf")
     out = f(t_eval[tk], [1.0, 2.0])
     print(type(out))
     print(out)
 
-    print('\nf')
+    print("\nf")
     out = jax.jacfwd(f, argnums=1)(t_eval[tk], [1.0, 2.0])
-    print('len of output: ', len(out), type(out))
+    print("len of output: ", len(out), type(out))
     for o in out:
         print(o.shape, type(o))
         print(o)
 
-    print('\nf')
+    print("\nf")
     out = jax.jacrev(f, argnums=1)(t_eval[tk], [1.0, 2.0])
-    print('len of output: ', len(out), type(out))
+    print("len of output: ", len(out), type(out))
     for o in out:
         print(o.shape, type(o))
         print(o)
 
-    print('\njacfwd-jacrev')
+    print("\njacfwd-jacrev")
     out = jax.jacrev(jax.jacfwd(f, argnums=1), argnums=1)(t_eval[tk], [1.0, 2.0])
-    print('len of output: ', len(out), type(out))
+    print("len of output: ", len(out), type(out))
     for o in out:
         print(o)
 
@@ -121,104 +124,109 @@ if False:
 
 
 if True:
+
     def f(t, inputs):
-        print('f')
-        print('  t: ', t)
-        print('  inputs: ', inputs)
-        out = jnp.array([
-            t + 7. * inputs["in1"],
-            t * t + 3. * inputs["in2"],
-            t * t * t + inputs["in1"] * inputs["in2"],
-        ], dtype='float64')
-        print('f-out: ', out)
+        print("f")
+        print("  t: ", t)
+        print("  inputs: ", inputs)
+        out = jnp.array(
+            [
+                t + 7.0 * inputs["in1"],
+                t * t + 3.0 * inputs["in2"],
+                t * t * t + inputs["in1"] * inputs["in2"],
+            ],
+            dtype="float64",
+        )
+        print("f-out: ", out)
         return out
 
-    varnames = ['out1', 'out2', 'out3']
+    varnames = ["out1", "out2", "out3"]
 
     def isolate_var(f, varname):
         index = varnames.index(varname)
 
         def f_isolated(*args, **kwargs):
             return f(*args, **kwargs)[index]
+
         return f_isolated
 
     n_in = len(inputs)
     n_out = len(output_variables)
     inputs = {"in1": 1.0, "in2": 2.0}
-    t_eval = np.arange(20, dtype='float64')
+    t_eval = np.arange(20, dtype="float64")
     tk = 5
 
-    print('\nf')
+    print("\nf")
     out = f(t_eval[tk], inputs)
     print(type(out), out)
 
-    print('\nf vmap')
+    print("\nf vmap")
     out = jax.vmap(f, in_axes=(0, None))(t_eval, inputs)
     print(type(out), out)
 
-    print('\njacfwd (wrt t)')
+    print("\njacfwd (wrt t)")
     out = jax.jacfwd(f, argnums=0)(t_eval[tk], inputs)
     print(out)
 
-    print('\njacfwd (wrt t^2)')
+    print("\njacfwd (wrt t^2)")
     out = jax.jacfwd(jax.jacfwd(f))(t_eval[tk], inputs)
     print(out)
 
-    print('\njacfwd (wrt t^3)')
+    print("\njacfwd (wrt t^3)")
     out = jax.jacfwd(jax.jacfwd(jax.jacfwd(f)))(t_eval[tk], inputs)
     print(out)
 
-    print('\njvp')
+    print("\njvp")
     out = jax.jvp(f, (t_eval[tk], inputs), (1.0, inputs))
     print(out)
 
-    print('\njacfwd (wrt inputs)')
+    print("\njacfwd (wrt inputs)")
     out = jax.jacfwd(f, argnums=1)(t_eval[tk], inputs)
     print(out)
-    print('len of output: ', len(out), type(out))
+    print("len of output: ", len(out), type(out))
     for k, o in out.items():
         print(o.shape, type(o))
         print(o)
 
-    print('\njacfwd (wrt inputs) vmap')
+    print("\njacfwd (wrt inputs) vmap")
     out = jax.vmap(jax.jacfwd(f, argnums=1), in_axes=(0, None))(t_eval, inputs)
     print(out)
-    print('len of output: ', len(out), type(out))
+    print("len of output: ", len(out), type(out))
     for k, o in out.items():
         print(o.shape, type(o))
         print(o)
 
-    print('\njacrev')
+    print("\njacrev")
     out = jax.jacrev(f, argnums=1)(t_eval[tk], inputs)
-    print('len of output: ', len(out), type(out))
+    print("len of output: ", len(out), type(out))
     for k, o in out.items():
         print(o.shape, type(o))
         print(o)
 
-    print('\njacrev vmap')
+    print("\njacrev vmap")
     out = jax.vmap(jax.jacrev(f, argnums=1), in_axes=(0, None))(t_eval, inputs)
-    print('len of output: ', len(out), type(out))
+    print("len of output: ", len(out), type(out))
     for k, o in out.items():
         print(o.shape, type(o))
         print(o)
 
-    print('\njacfwd-jacrev')
+    print("\njacfwd-jacrev")
     out = jax.jacrev(jax.jacfwd(f, argnums=1), argnums=1)(t_eval[tk], inputs)
-    print('len of output: ', len(out), type(out))
+    print("len of output: ", len(out), type(out))
     for k, o in out.items():
         print(o)
 
-    print('\nisolate_var')
+    print("\nisolate_var")
     for varname in varnames:
         out = isolate_var(f, varname)(t_eval[tk], inputs)
         print(varname, type(out), out)
 
-    print('\nisolate_var vmap')
+    print("\nisolate_var vmap")
     for varname in varnames:
         out = jax.vmap(isolate_var(f, varname), in_axes=(0, None))(t_eval, inputs)
         print(varname, type(out), out)
 
-    print('\ngrad')
+    print("\ngrad")
     for varname in varnames:
         out = jax.grad(isolate_var(f, varname), argnums=1)(t_eval[tk], inputs)
         print(varname)
@@ -226,9 +234,11 @@ if True:
             print(o.shape, type(o))
             print(o)
 
-    print('\ngrad vmap')
+    print("\ngrad vmap")
     for varname in varnames:
-        out = jax.vmap(jax.grad(isolate_var(f, varname), argnums=1), in_axes=(0, None))(t_eval, inputs)
+        out = jax.vmap(jax.grad(isolate_var(f, varname), argnums=1), in_axes=(0, None))(
+            t_eval, inputs
+        )
         print(varname)
         for k, o in out.items():
             print(o.shape, type(o))

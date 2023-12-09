@@ -4,7 +4,7 @@ import jax.numpy as jnp
 from jax.interpreters import ad
 
 # Make a Primitive
-foo_p = jax.core.Primitive('foo')
+foo_p = jax.core.Primitive("foo")
 
 
 def foo(x):
@@ -29,13 +29,13 @@ def foo_jvp(primals, tangents):
 
 ad.primitive_jvps[foo_p] = foo_jvp
 
-foo_jvp_p = jax.core.Primitive('foo_jvp')
+foo_jvp_p = jax.core.Primitive("foo_jvp")
 
 
 def f_batch(args, batch_axes):
-    print('f_batch')
-    print('  args: ', args)
-    print('  batch_axes: ', batch_axes)
+    print("f_batch")
+    print("  args: ", args)
+    print("  batch_axes: ", batch_axes)
     t = args[0]
     if batch_axes[0] is not None:
         out = list(map(foo, t))
@@ -54,9 +54,9 @@ jax.interpreters.batching.primitive_batchers[foo_p] = f_batch
 # opaque primitive.
 @foo_jvp_p.def_abstract_eval
 def foo_jvp_abstract_eval(x_aval, x_dot_aval):
-    print('foo_jvp_abstract_eval')
-    print('  x_aval: ', x_aval)
-    print('  x_dot_aval: ', x_dot_aval)
+    print("foo_jvp_abstract_eval")
+    print("  x_aval: ", x_aval)
+    print("  x_dot_aval: ", x_dot_aval)
     y_dot_aval = jax.core.ShapedArray(x_dot_aval.shape, x_dot_aval.dtype)
     return y_dot_aval
 
@@ -67,9 +67,9 @@ def foo_jvp_impl(x, x_dot):
 
 
 def foo_jvp_batch(args, batch_axes):
-    print('f_batch')
-    print('  args: ', args)
-    print('  batch_axes: ', batch_axes)
+    print("f_batch")
+    print("  args: ", args)
+    print("  batch_axes: ", batch_axes)
     out = []
     if batch_axes[0] is not None:
         for a in args[0]:
@@ -80,7 +80,7 @@ def foo_jvp_batch(args, batch_axes):
             _, outa = foo_jvp((args[0],), (a,))
             out.append(outa)
     else:
-        print('batch_axes = ', batch_axes)
+        print("batch_axes = ", batch_axes)
         raise Exception("not implemented")
     return jnp.stack(out), 0
 
@@ -98,7 +98,7 @@ def foo_jvp_transpose(y_bar, x, x_dot_dummy):
 ad.primitive_transposes[foo_jvp_p] = foo_jvp_transpose
 
 # Finally, let's write the vjp rule as a primitive.
-foo_vjp_p = jax.core.Primitive('foo_vjp')
+foo_vjp_p = jax.core.Primitive("foo_vjp")
 
 
 def foo_vjp(x):
@@ -111,9 +111,9 @@ def foo_vjp_impl(x, y_bar):
 
 
 def foo_vjp_batch(args, batch_axes):
-    print('foo_vjp_batch')
-    print('  args:', args)
-    print('  batch_axes:', batch_axes)
+    print("foo_vjp_batch")
+    print("  args:", args)
+    print("  batch_axes:", batch_axes)
 
     x, y_bar = args
     out = []
@@ -126,7 +126,7 @@ def foo_vjp_batch(args, batch_axes):
             outy = foo_vjp_p.bind(x, y)
             out.append(outy)
     else:
-        raise ValueError('must be at least one non-None batch axis')
+        raise ValueError("must be at least one non-None batch axis")
     return jnp.stack(out), 0
 
 
@@ -138,20 +138,20 @@ jax.interpreters.batching.primitive_batchers[foo_vjp_p] = foo_vjp_batch
 
 # Let's test it!
 
-print('\n\njacfwd')
-print(jax.jacfwd(foo)(3.))
+print("\n\njacfwd")
+print(jax.jacfwd(foo)(3.0))
 
-print('\n\njacfwd vmap')
-print(jax.vmap(jax.jacfwd(foo))(onp.arange(20, dtype='float64')))
+print("\n\njacfwd vmap")
+print(jax.vmap(jax.jacfwd(foo))(onp.arange(20, dtype="float64")))
 
-print('\n\njacrev')
-print(jax.jacrev(foo)(3.))
+print("\n\njacrev")
+print(jax.jacrev(foo)(3.0))
 
-print('\n\njacrev vmap')
-print(jax.vmap(jax.jacrev(foo))(onp.arange(20, dtype='float64')))
+print("\n\njacrev vmap")
+print(jax.vmap(jax.jacrev(foo))(onp.arange(20, dtype="float64")))
 
-print('\n\ngrad')
-print(jax.grad(foo)(3.))
+print("\n\ngrad")
+print(jax.grad(foo)(3.0))
 
-print('\n\ngrad vmap')
-print(jax.vmap(jax.grad(foo))(onp.arange(20, dtype='float64')))
+print("\n\ngrad vmap")
+print(jax.vmap(jax.grad(foo))(onp.arange(20, dtype="float64")))

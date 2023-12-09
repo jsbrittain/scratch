@@ -87,6 +87,7 @@ def isolate_var(f, varname):
 
     def f_isolated(*args, **kwargs):
         return f(*args, **kwargs)[index]
+
     return f_isolated
 
 
@@ -94,31 +95,34 @@ f_p = jax.core.Primitive("f")
 
 
 def f(*args):
-    print('f')
+    print("f")
     flatargs, treedef = tree_flatten(args)
     out = f_p.bind(*flatargs)
-    print('<- f: ', out)
+    print("<- f: ", out)
     return out
 
 
 @f_p.def_impl
 def f_impl(t, *inputs):
-    print('f_impl')
+    print("f_impl")
     k1 = 0
     k2 = 1
-    out = np.array([
-        t + 7. * inputs[k1],
-        t * t + 3. * inputs[k2],
-        t * t * t + inputs[k1] * inputs[k2],
-    ], dtype='float64')
-    print('<- f_impl: ', out)
+    out = np.array(
+        [
+            t + 7.0 * inputs[k1],
+            t * t + 3.0 * inputs[k2],
+            t * t * t + inputs[k1] * inputs[k2],
+        ],
+        dtype="float64",
+    )
+    print("<- f_impl: ", out)
     return out
 
 
 def f_batch(args, batch_axes):
-    print('f_batch')
-    print('  args: ', args)
-    print('  batch_axes: ', batch_axes)
+    print("f_batch")
+    print("  args: ", args)
+    print("  batch_axes: ", batch_axes)
     if batch_axes[0] is not None:
         t = args[0]
         inputs = args[1:]
@@ -132,18 +136,19 @@ batching.primitive_batchers[f_p] = f_batch
 
 
 def f_jvp(primals, tangents):
-    print('f_jvp')
-    print('  values: ', primals)
-    print('  tangents: ', tangents)
+    print("f_jvp")
+    print("  values: ", primals)
+    print("  tangents: ", tangents)
 
     def make_zero(prim, tan):
         return lax.zeros_like_array(prim) if type(tan) is ad.Zero else tan
+
     zero_mapped_tangents = tuple(
         map(lambda pt: make_zero(pt[0], pt[1]), zip(primals, tangents))
     )
     y = f(*primals)
     y_dot = f_jvp_p.bind(*primals, *zero_mapped_tangents)
-    print('<- f_jvp')
+    print("<- f_jvp")
     return y, y_dot
 
 
@@ -155,18 +160,18 @@ f_jvp_p = jax.core.Primitive("f_jvp")
 
 @f_jvp_p.def_impl
 def f_jvp_impl(*args):
-    print('f_jvp_impl')
+    print("f_jvp_impl")
     return np.random.rand(n_out)
 
 
 def f_jvp_abstract_eval(*args):
-    print('f_jvp_abstract_eval')
-    print('  args: ', args)
-    primals = args[:len(args) // 2]
-    tangents = args[len(args) // 2:]
+    print("f_jvp_abstract_eval")
+    print("  args: ", args)
+    primals = args[: len(args) // 2]
+    tangents = args[len(args) // 2 :]
     t = primals[0]
     out = jax.core.ShapedArray((n_out,), t.dtype)
-    print('<- f_jvp_abstract_eval')
+    print("<- f_jvp_abstract_eval")
     return out
 
 
@@ -181,17 +186,15 @@ def f_jvp_transpose(y_bar, *args):
     print("  y_bar: ", y_bar)
     print("  args: ", args)
 
-    primals = args[:len(args) // 2]
-    tangents = args[len(args) // 2:]
+    primals = args[: len(args) // 2]
+    tangents = args[len(args) // 2 :]
 
     tangents_out = []
     for y in y_bar:
-        tangents_out.append(
-            f_vjp_p.bind(y, *primals)
-        )
+        tangents_out.append(f_vjp_p.bind(y, *primals))
 
     out = *([None] * len(tangents_out)), *tangents_out
-    print('<- f_jvp_transpose: ', out)
+    print("<- f_jvp_transpose: ", out)
     return out
 
 
@@ -199,9 +202,9 @@ ad.primitive_transposes[f_jvp_p] = f_jvp_transpose
 
 
 def f_vjp(y_bar, primals):
-    print('f_vjp')
-    print('  y_bar: ', y_bar)
-    print('  primals: ', primals)
+    print("f_vjp")
+    print("  y_bar: ", y_bar)
+    print("  primals: ", primals)
     return f_vjp_p.bind(y_bar, primals)
 
 
@@ -213,9 +216,9 @@ def f_vjp_p_impl(y_bar, *primals):
 
 
 def f_vjp_p_batch(args, batch_axes):
-    print('f_vjp_p_batch')
-    print('  args: ', args)
-    print('  batch_axes: ', batch_axes)
+    print("f_vjp_p_batch")
+    print("  args: ", args)
+    print("  batch_axes: ", batch_axes)
     y_bars, t, *inputs = args
 
     if batch_axes[0] is not None:
@@ -232,11 +235,11 @@ batching.primitive_batchers[f_vjp_p] = f_vjp_p_batch
 
 
 def f_jvp_batch(args, batch_axes):
-    print('f_jvp_batch')
-    print('  args: ', args)
-    print('  batch_axes: ', batch_axes)
-    primals = args[:len(args) // 2]
-    tangents = args[len(args) // 2:]
+    print("f_jvp_batch")
+    print("  args: ", args)
+    print("  batch_axes: ", batch_axes)
+    primals = args[: len(args) // 2]
+    tangents = args[len(args) // 2 :]
     t = primals[0]
     inputs = primals[1:]
 
@@ -251,57 +254,59 @@ def f_jvp_batch(args, batch_axes):
         out = list(map(lambda x: f_jvp((t, x), tangents), inputs))
         return jnp.stack(out), 1
     else:
-        raise Exception("Batching can occur over time, or differentiation over "
-                        f"inputs, but got: batch_axes = {batch_axes}.")
+        raise Exception(
+            "Batching can occur over time, or differentiation over "
+            f"inputs, but got: batch_axes = {batch_axes}."
+        )
 
 
 batching.primitive_batchers[f_jvp_p] = f_jvp_batch
 
 
-varnames = ['out1', 'out2', 'out3']
+varnames = ["out1", "out2", "out3"]
 n_in = len(inputs)
 n_out = len(output_variables)
 inputs = {"in1": 1.0, "in2": 2.0}
-t_eval = np.arange(20, dtype='float64')
+t_eval = np.arange(20, dtype="float64")
 tk = 5
 
-print('\nf')
+print("\nf")
 out = f(t_eval[tk], inputs)
 assert out.shape == (n_out,)
 print(type(out), out)
 
-print('\nf vmap')
+print("\nf vmap")
 out = jax.vmap(f, in_axes=(0, None))(t_eval, inputs)
 assert out.shape == (len(t_eval), n_out)
 print(type(out), out)
 
-print('\njvp')
+print("\njvp")
 out = jax.jvp(f, (t_eval[tk], inputs), (1.0, inputs))
 print(out)
 
-print('\njacfwd (wrt t)')
+print("\njacfwd (wrt inputs)")
 out = jax.jacfwd(f, argnums=1)(t_eval[tk], inputs)
 print(out)
 assert out.shape == (n_out,)
 
-#print('\njacfwd (wrt t) vmap')
-#out = jax.vmap(jax.jacfwd(f, argnums=0), in_axes=(0, None))(t_eval, inputs)
-#print(out)
-#assert out.shape == (len(t_eval), n_out)
+# print('\njacfwd (wrt t) vmap')
+# out = jax.vmap(jax.jacfwd(f, argnums=0), in_axes=(0, None))(t_eval, inputs)
+# print(out)
+# assert out.shape == (len(t_eval), n_out)
 
-#print('\njacfwd (wrt inputs)')
-#out = jax.jacfwd(f, argnums=1)(t_eval[tk], inputs)
-#print(out)
+# print('\njacfwd (wrt inputs)')
+# out = jax.jacfwd(f, argnums=1)(t_eval[tk], inputs)
+# print(out)
 
-#print('\njacfwd (wrt inputs) vmap')
-#out = jax.vmap(jax.jacfwd(f, argnums=1), in_axes=(0, None))(t_eval, inputs)
-#print(out)
+# print('\njacfwd (wrt inputs) vmap')
+# out = jax.vmap(jax.jacfwd(f, argnums=1), in_axes=(0, None))(t_eval, inputs)
+# print(out)
 
-print('\njacrev (wrt inputs)')  # Should be same output as jacfwd
+print("\njacrev (wrt inputs)")  # Should be same output as jacfwd
 out = jax.jacrev(f, argnums=1)(t_eval[tk], inputs)
 print(out)
 
-print('\ngrad (wrt inputs) vmap')
+print("\njacrev (wrt inputs) vmap")
 out = jax.vmap(
     jax.jacrev(
         isolate_var(f, varnames[0]),
@@ -311,12 +316,12 @@ out = jax.vmap(
 )(t_eval, inputs)
 print(out)
 
-if False:
-    print('\ngrad (wrt inputs)')
+if True:
+    print("\ngrad (wrt inputs)")
     out = jax.grad(isolate_var(f, varnames[0]), argnums=1)(t_eval[tk], inputs)
     print(out)
 
-    print('\ngrad (wrt inputs) vmap')
+    print("\ngrad (wrt inputs) vmap")
     out = jax.vmap(
         jax.grad(
             isolate_var(f, varnames[0]),
@@ -328,12 +333,12 @@ if False:
 
 exit(0)
 
-print('\njacrev (wrt inputs)')
+print("\njacrev (wrt inputs)")
 out = jax.jacrev(f, argnums=1)(t_eval[tk], inputs)
 print(out)
 
 assert isinstance(out, dict)
-print('len of output: ', len(out), type(out))
+print("len of output: ", len(out), type(out))
 for k, o in out.items():
     print(o.shape, type(o))
     print(o)
@@ -341,56 +346,56 @@ for k, o in out.items():
 
 exit(0)
 
-print('\njacfwd (wrt inputs) vmap')
+print("\njacfwd (wrt inputs) vmap")
 out = jax.vmap(jax.jacfwd(f, argnums=1), in_axes=(0, None))(t_eval, inputs)
 print(out)
 assert isinstance(out, dict)
-print('len of output: ', len(out), type(out))
+print("len of output: ", len(out), type(out))
 for k, o in out.items():
     print(o.shape, type(o))
     print(o)
     assert o.shape == (len(t_eval), n_out)
 
-print('\njacrev')  # RETURNS ALL ZEROS
+print("\njacrev")  # RETURNS ALL ZEROS
 out = jax.jacrev(f, argnums=1)(t_eval[tk], inputs)
 assert isinstance(out, dict)
-print('len of output: ', len(out), type(out))
+print("len of output: ", len(out), type(out))
 for k, o in out.items():
     print(o.shape, type(o))
     print(o)
     assert o.shape == (n_out,)
 
-print('\njacrev vmap')  # RETURNS ALL ZEROS
+print("\njacrev vmap")  # RETURNS ALL ZEROS
 out = jax.vmap(jax.jacrev(f, argnums=1), in_axes=(0, None))(t_eval, inputs)
 assert isinstance(out, dict)
-print('len of output: ', len(out), type(out))
+print("len of output: ", len(out), type(out))
 for k, o in out.items():
     print(o.shape, type(o))
     print(o)
     assert o.shape == (len(t_eval), n_out)
 
-print('\njacfwd-jacrev')
+print("\njacfwd-jacrev")
 out = jax.jacrev(jax.jacfwd(f, argnums=1), argnums=1)(t_eval[tk], inputs)
-print('len of output: ', len(out), type(out))
+print("len of output: ", len(out), type(out))
 assert isinstance(out, dict)
 assert len(out) == n_in
 for k, o in out.items():
     print(o)
     assert isinstance(o, dict)
 
-print('\nisolate_var')
+print("\nisolate_var")
 for varname in varnames:
     out = isolate_var(f, varname)(t_eval[tk], inputs)
     print(varname, type(out), out)
     assert out.ndim == 0
 
-print('\nisolate_var vmap')
+print("\nisolate_var vmap")
 for varname in varnames:
     out = jax.vmap(isolate_var(f, varname), in_axes=(0, None))(t_eval, inputs)
     print(varname, type(out), out)
     assert out.shape == (len(t_eval),)
 
-print('\ngrad')
+print("\ngrad")
 for varname in varnames:
     out = jax.grad(isolate_var(f, varname), argnums=1)(t_eval[tk], inputs)
     print(varname)
@@ -399,9 +404,11 @@ for varname in varnames:
         print(o)
         assert o.ndim == 0
 
-print('\ngrad vmap')
+print("\ngrad vmap")
 for varname in varnames:
-    out = jax.vmap(jax.grad(isolate_var(f, varname), argnums=1), in_axes=(0, None))(t_eval, inputs)
+    out = jax.vmap(jax.grad(isolate_var(f, varname), argnums=1), in_axes=(0, None))(
+        t_eval, inputs
+    )
     print(varname)
     assert isinstance(out, dict)
     for k, o in out.items():

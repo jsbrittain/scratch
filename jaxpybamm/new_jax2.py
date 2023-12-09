@@ -82,11 +82,11 @@ calculate_sensitivities = True
 
 
 def isolate_var(fcn, varname):
-    print('  isolate_var')
+    print("  isolate_var")
     index = output_variables.index(varname)
 
     def impl(t, *args, **kwargs):
-        print('    isolate_var_impl')
+        print("    isolate_var_impl")
         out = jnp.array(fcn(t, *args, **kwargs))
         # Vectors always revert to (N,), meaning we don't know if they are multiple
         # time points for a single variable or multiple variables at a single time point
@@ -107,11 +107,12 @@ def isolate_var(fcn, varname):
         if out.shape == (1,):
             out = out[0]  # scalar
         return out
+
     return impl
 
 
 def f(t, inputs, **kwargs):
-    print('  f')
+    print("  f")
     values = jnp.array(list(inputs.values()))
     out = f_p.bind(t, values, **kwargs)
     return out
@@ -130,14 +131,14 @@ class hashabledict(dict):
 @lru_cache(maxsize=1)  # cache the current solve for reuse
 def cached_solve(model, t_eval, *args, **kwargs):
     # reconstruct time vector
-    print('  cached_solve')
+    print("  cached_solve")
     t_eval = jnp.array(list(t_eval.values()))
     return solver.solve(model, t_eval, *args, **kwargs)
 
 
 @f_p.def_impl
 def f_impl(t, inputs, *, invar=None):
-    print('  f_impl')
+    print("  f_impl")
     # convert scalar time values to vector
     if t.ndim == 0:
         t = jnp.array([t], dtype=jnp.float64)
@@ -174,29 +175,33 @@ def f_impl(t, inputs, *, invar=None):
         # Return sensitivities
         tk = [k for k, tval in enumerate(t_eval) if tval >= t[0] and tval <= t[-1]]
         out_sens = jnp.reshape(
-            jnp.array([
-                jnp.array(sim[outvar].sensitivities[invar][tk])
-                for outvar in output_variables
-            ]).transpose(),
-            out.shape)
+            jnp.array(
+                [
+                    jnp.array(sim[outvar].sensitivities[invar][tk])
+                    for outvar in output_variables
+                ]
+            ).transpose(),
+            out.shape,
+        )
         return out, out_sens
 
     return out
 
 
 if False:
+
     @f_p.def_abstract_eval
     def f_abstract_eval(t, *args):
         """Abstract evaluation of Primitive
         Takes abstractions of inputs, returned ShapedArray for result of primitive
         """
-        print('  f_abstract_eval')
+        print("  f_abstract_eval")
         y_aval = jax.core.ShapedArray(t.shape, t.dtype)
         return y_aval
 
 
 def f_batch(args, batch_axes, **kwargs):
-    print('  f_batch')
+    print("  f_batch")
     tvec = args[0]
     if tvec.ndim == 0:
         tvec = jnp.array([tvec])
@@ -210,12 +215,15 @@ batching.primitive_batchers[f_p] = f_batch
 
 from jax.tree_util import tree_flatten, tree_unflatten
 
+
 def f_jvp(primals, tangents):
-    print('  f_jvp')
-    print('   primals: ', primals)
-    print('   tangents: ', tangents)
+    print("  f_jvp")
+    print("   primals: ", primals)
+    print("   tangents: ", tangents)
     # assert type(tangents[0]) is ad.Zero, "We do not currently support time derivatives"
-    assert type(tangents[1]) is not ad.Zero, "We currently only support input variable derivatives"
+    assert (
+        type(tangents[1]) is not ad.Zero
+    ), "We currently only support input variable derivatives"
 
     # List of input variable names
     invars = list(inputs0.keys())
@@ -225,7 +233,7 @@ def f_jvp(primals, tangents):
 
     # Tangents
     tangent = tangents[1]  # tangent = matrix wrt each output, e.g. [[1, 0], [0, 1]]
-    print('tangent: ', tangent)
+    print("tangent: ", tangent)
     y_dot = jnp.zeros((1, tangent.shape[0]))
     for row_index, row in enumerate(tangent):
         # Sum over all input variables
@@ -234,23 +242,25 @@ def f_jvp(primals, tangents):
         sens = f_jvp_p.bind(*primals, invar=invar)
         y_dot = y_dot.at[0, row_index].set(np.dot(row.val, sens[0]))
     print(y_dot)
-    return y, y_dot,
+    return (
+        y,
+        y_dot,
+    )
 
 
 ad.primitive_jvps[f_p] = f_jvp
 
 
 if False:
+
     def f_transpose(y_bar, *args):
-        print('  f_transpose')
+        print("  f_transpose")
         primals = args[: len(args) // 2]
         tangents = args[len(args) // 2 :]  # noqa: F841
         invar = "Current function [A]"
         x_bar = f_p.bind(*primals, invar=invar)
         primals_out = (None,) * len(primals)
-        tangents_out = jnp.dot(y_bar, x_bar), *(
-            (None,) * (len(primals) - 1)
-        )
+        tangents_out = jnp.dot(y_bar, x_bar), *((None,) * (len(primals) - 1))
         return *primals_out, *tangents_out
 
     ad.primitive_transposes[f_p] = f_transpose
@@ -258,9 +268,9 @@ if False:
 
 @f_jvp_p.def_impl
 def f_jvp_impl(t, input_values, *, invar=None):
-    print('  f_jvp_impl')
-    print('    t: ', t)
-    print('    input_values: ', input_values)
+    print("  f_jvp_impl")
+    print("    t: ", t)
+    print("    input_values: ", input_values)
 
     # convert scalar time values to vector
     if t.ndim == 0:
@@ -294,16 +304,19 @@ def f_jvp_impl(t, input_values, *, invar=None):
     # Return sensitivities
     tk = [k for k, tval in enumerate(t_eval) if tval >= t[0] and tval <= t[-1]]
     out = jnp.reshape(
-        jnp.array([
-            jnp.array(sim[outvar].sensitivities[invar][tk])
-            for outvar in output_variables
-        ]).transpose(),
-        out.shape)
+        jnp.array(
+            [
+                jnp.array(sim[outvar].sensitivities[invar][tk])
+                for outvar in output_variables
+            ]
+        ).transpose(),
+        out.shape,
+    )
     return out
 
 
 def f_jvp_batch(args, batch_axes, **kwargs):
-    print('  f_jvp_batch')
+    print("  f_jvp_batch")
     tvec = args[0]
     if tvec.ndim == 0:
         tvec = jnp.array([tvec])
@@ -345,8 +358,6 @@ out = jax.vmap(isolate_var(f, outvar), in_axes=(0, None))(t_eval, inputs)
 print(out.shape, " ", out)
 
 
-
-
 print("\njacfwd (scalar)")  # SAME VALUES FOR EACH INPUT
 out = jax.jacfwd(f, argnums=1)(t_eval[k], inputs)
 print(out)
@@ -357,22 +368,15 @@ print(out)
 
 print("\ngrad (scalar)")  # ALL ZEROS
 outvar = output_variables[0]
-out = jax.grad(
-    isolate_var(f, outvar),
-    argnums=1
-)(t_eval[k], inputs)
+out = jax.grad(isolate_var(f, outvar), argnums=1)(t_eval[k], inputs)
 print(out)
 
 exit(0)
 
 
 print("\njvp (scalar)")
-out = jax.jvp(f, (t_eval[k], inputs), (0., inputs))
+out = jax.jvp(f, (t_eval[k], inputs), (0.0, inputs))
 print(out)
-
-
-
-
 
 
 print("\njacfwd isolate-var (scalar)")  # SAME VALUES FOR EACH INPUT
@@ -393,7 +397,9 @@ print(out)
 
 print("\njacfwd isolate-var (vmap)")  # SAME VALUES FOR EACH INPUT
 outvar = output_variables[0]
-out = jax.vmap(jax.jacfwd(isolate_var(f, outvar), argnums=1), in_axes=(0, None))(t_eval, inputs)
+out = jax.vmap(jax.jacfwd(isolate_var(f, outvar), argnums=1), in_axes=(0, None))(
+    t_eval, inputs
+)
 print(out)
 
 print("\njacrev (scalar)")  # ALL ZEROS
@@ -403,7 +409,9 @@ print(out)
 
 print("\njacrev (vmap)")  # ALL ZEROS
 outvar = output_variables[0]
-out = jax.vmap(jax.jacrev(isolate_var(f, outvar), argnums=1), in_axes=(0, None))(t_eval, inputs)
+out = jax.vmap(jax.jacrev(isolate_var(f, outvar), argnums=1), in_axes=(0, None))(
+    t_eval, inputs
+)
 print(out)
 
 print("\ngrad (scalar)")  # ALL ZEROS
@@ -413,12 +421,16 @@ print(out)
 
 print("\ngrad (vmap)")  # ALL ZEROS
 outvar = output_variables[0]
-out = jax.vmap(jax.grad(isolate_var(f, outvar), argnums=1), in_axes=(0, None))(t_eval, inputs)
+out = jax.vmap(jax.grad(isolate_var(f, outvar), argnums=1), in_axes=(0, None))(
+    t_eval, inputs
+)
 print(out)
 
 # Show actual sensitivities
 print("\nActual sensitivities")
 outvar = output_variables[0]
-check = jnp.array([jnp.array(sim[outvar].sensitivities[invar]) for invar in inputs]).squeeze()
+check = jnp.array(
+    [jnp.array(sim[outvar].sensitivities[invar]) for invar in inputs]
+).squeeze()
 print(check)
 # assert np.allclose(out, check)

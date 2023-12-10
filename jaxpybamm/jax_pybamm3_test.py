@@ -256,19 +256,16 @@ def test_jacfwd_scalar_getvars():
 def test_jacfwd_scalar_getvar():
     for outvar in output_variables:
         print(f"\njac_fwd (scalar) get_var: {outvar}")
-        out = jax.jacfwd(idaklu_solver.get_var(f, outvar), argnums=1)(
-            t_eval[k], x
-        )
+        out = jax.jacfwd(idaklu_solver.get_var(f, outvar), argnums=1)(t_eval[k], x)
         print(out)
         flat_out, _ = tree_flatten(out)
         flat_out = np.array([f for f in flat_out]).flatten()
         check = np.array(
-            [
-                sim[outvar].sensitivities[invar][k]
-                for invar in x
-            ]
+            [sim[outvar].sensitivities[invar][k] for invar in x]
         ).transpose()
-        assert np.allclose(flat_out, check.flatten()), f"Got: {flat_out}\nExpected: {check}"
+        assert np.allclose(
+            flat_out, check.flatten()
+        ), f"Got: {flat_out}\nExpected: {check}"
 
 
 def test_jacfwd_vmap_getvars():
@@ -295,11 +292,13 @@ def test_jacfwd_vmap_getvar():
         )(t_eval, x)
         print(out)
         flat_out, _ = tree_flatten(out)
-        flat_out = np.concatenate(np.array([f for f in flat_out]), 0).transpose().flatten()
-        check = np.array(
-            [sim[outvar].sensitivities[invar] for invar in x]
+        flat_out = (
+            np.concatenate(np.array([f for f in flat_out]), 0).transpose().flatten()
         )
-        assert np.allclose(flat_out, check.flatten()), f"Got: {flat_out}\nExpected: {check}"
+        check = np.array([sim[outvar].sensitivities[invar] for invar in x])
+        assert np.allclose(
+            flat_out, check.flatten()
+        ), f"Got: {flat_out}\nExpected: {check}"
 
 
 def test_jacrev_scalar_getvars():
@@ -327,10 +326,7 @@ def test_jacrev_scalar_getvar():
         flat_out, _ = tree_flatten(out)
         flat_out = np.array([f for f in flat_out]).flatten()
         check = np.array(
-            [
-                sim[outvar].sensitivities[invar][k]
-                for invar in x
-            ]
+            [sim[outvar].sensitivities[invar][k] for invar in x]
         ).transpose()
         assert np.allclose(flat_out, check.flatten())
 
@@ -360,9 +356,7 @@ def test_jacrev_vmap_getvar():
         print(out)
         flat_out, _ = tree_flatten(out)
         flat_out = np.array([f for f in flat_out]).flatten()
-        check = np.array(
-            [sim[outvar].sensitivities[invar] for invar in x]
-        )
+        check = np.array([sim[outvar].sensitivities[invar] for invar in x])
         assert np.allclose(flat_out, check.flatten())
 
 
@@ -381,11 +375,9 @@ def test_grad_scalar_getvar():
         print(out)
         flat_out, _ = tree_flatten(out)
         flat_out = np.array([f for f in flat_out]).flatten()
-        check = np.array(
-            [sim[outvar].sensitivities[invar][k] for invar in x]
-        )
-        print('expected: ', check.flatten())
-        print('got: ', flat_out)
+        check = np.array([sim[outvar].sensitivities[invar][k] for invar in x])
+        print("expected: ", check.flatten())
+        print("got: ", flat_out)
         assert np.allclose(flat_out, check.flatten())
 
 
@@ -402,9 +394,7 @@ def test_grad_vmap_getvar():
         print(out)
         flat_out, _ = tree_flatten(out)
         flat_out = np.array([f for f in flat_out]).flatten()
-        check = np.array(
-            [sim[outvar].sensitivities[invar] for invar in x]
-        )
+        check = np.array([sim[outvar].sensitivities[invar] for invar in x])
         assert np.allclose(flat_out, check.flatten())
 
 

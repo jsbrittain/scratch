@@ -54,6 +54,7 @@ data = sim["Terminal voltage [V]"](t_eval)
 output_variables = [
     "Terminal voltage [V]",
     "Discharge capacity [A.h]",
+    "Loss of lithium inventory [%]",
 ]
 f_jax = idaklu_solver.jaxify(
     model,
@@ -322,9 +323,7 @@ def test_jacrev_scalar_getvars():
 def test_jacrev_scalar_getvar():
     for outvar in output_variables:
         print(f"\njac_rev (scalar) getvar: {outvar}")
-        #out = jax.jacrev(idaklu_solver.get_var(f, outvar), argnums=1)(t_eval[k], x)
-        out = jax.jacrev(idaklu_solver.get_vars(f, [output_variables[0]]), argnums=1)(t_eval[k], x)
-        print(out)
+        out = jax.jacrev(idaklu_solver.get_var(f, outvar), argnums=1)(t_eval[k], x)
         flat_out, _ = tree_flatten(out)
         flat_out = np.array([f for f in flat_out]).flatten()
         check = np.array(
@@ -360,7 +359,7 @@ def test_jacrev_vmap_getvar():
         )(t_eval, x)
         print(out)
         flat_out, _ = tree_flatten(out)
-        flat_out = np.concatenate(np.array([f for f in flat_out]), 1).transpose().flatten()
+        flat_out = np.array([f for f in flat_out]).flatten()
         check = np.array(
             [sim[outvar].sensitivities[invar] for invar in x]
         )
@@ -381,10 +380,12 @@ def test_grad_scalar_getvar():
         )  # output should be a dictionary of inputs
         print(out)
         flat_out, _ = tree_flatten(out)
-        flat_out = np.concatenate(np.array([f for f in flat_out]), 1).transpose().flatten()
+        flat_out = np.array([f for f in flat_out]).flatten()
         check = np.array(
             [sim[outvar].sensitivities[invar][k] for invar in x]
         )
+        print('expected: ', check.flatten())
+        print('got: ', flat_out)
         assert np.allclose(flat_out, check.flatten())
 
 
@@ -400,7 +401,7 @@ def test_grad_vmap_getvar():
         )(t_eval, x)
         print(out)
         flat_out, _ = tree_flatten(out)
-        flat_out = np.concatenate(np.array([f for f in flat_out]), 1).transpose().flatten()
+        flat_out = np.array([f for f in flat_out]).flatten()
         check = np.array(
             [sim[outvar].sensitivities[invar] for invar in x]
         )
@@ -426,19 +427,18 @@ if __name__ == "__main__":
         test_jacfwd_scalar_getvar,
         test_jacfwd_vmap_getvars,
         test_jacfwd_vmap_getvar,
-        test_jacrev_scalar_getvars,
+        # test_jacrev_scalar_getvars,
         test_jacrev_scalar_getvar,
-        test_jacrev_vmap_getvars,
+        # test_jacrev_vmap_getvars,
         test_jacrev_vmap_getvar,
         test_grad_scalar_getvar,
         test_grad_vmap_getvar,
     ]
-    testlist = [
-        test_jacrev_scalar_getvar,
-        test_jacrev_vmap_getvar,
-        test_grad_scalar_getvar,
-        test_grad_vmap_getvar,
-    ]
+    if 1:
+        testlist = [
+            test_jacrev_scalar_getvars,
+            # test_jacrev_vmap_getvars,
+        ]
 
     for test in testlist:
         print(f"\nRunning test: {test.__name__}")

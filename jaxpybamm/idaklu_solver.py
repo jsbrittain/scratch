@@ -695,15 +695,15 @@ class IDAKLUSolver(pybamm.BaseSolver):
         def f_isolated(*args, **kwargs):
             out = f(*args, **kwargs)
             index = self.jaxify_output_variables.index(varname)
-            print("f_isolated")
+            print('f_isolated')
             if out.ndim == 0:
-                print("  out(0): ", out)
+                print('  out(0): ', out)
                 return out
             elif out.ndim == 1:
-                print("  out(1): ", out[index])
+                print('  out(1): ', out[index])
                 return out[index]
             else:
-                print("  out(2): ", out[:, index])
+                print('  out(2): ', out[:, index])
                 return out[:, index]
 
         return f_isolated
@@ -712,15 +712,18 @@ class IDAKLUSolver(pybamm.BaseSolver):
         """Helper function to extract multiple variables from the jaxified expression"""
 
         def f_isolated(*args, **kwargs):
-            out = jnp.array(
-                list(
-                    map(
-                        lambda varname: self.get_var(f, varname)(*args, **kwargs),
-                        varnames,
-                    )
-                )
-            ).transpose()
-            return out
+            out = f(*args, **kwargs)
+            index = np.array([self.jaxify_output_variables.index(varname) for varname in varnames])
+            print('f_isolated')
+            if out.ndim == 0:
+                print('  out(0): ', out)
+                return out
+            elif out.ndim == 1:
+                print('  out(1): ', out[index])
+                return out[index]
+            else:
+                print('  out(2): ', out[:, index])
+                return out[:, index]
 
         return f_isolated
 
@@ -877,10 +880,12 @@ class IDAKLUSolver(pybamm.BaseSolver):
             inputs = primals[1:]
 
             # Identify input variable to differentiate wrt
-            invar_index = [k for k, t in enumerate(tangents[1:]) if t > 0.0]
-            # assert len(invar_index) == 0, "No input variable to differentiate wrt"
-            # assert len(invar_index) > 1, "Multiple input variables to differentiate wrt"
-            invar_index = invar_index[0]
+            indices = [k for k, t in enumerate(tangents[1:]) if t > 0.0]
+            if len(indices) == 0:
+                raise Exception(f"No output variable to differentiate wrt: {y_bar}")
+            if len(indices) > 1:
+                raise Exception(f"Multiple output variables to differentiate wrt: {y_bar}")
+            invar_index = indices[0]
             invar = list(self.jax_inputs.keys())[invar_index]
             y_dot = jaxify_solve(t, invar, *inputs)
 
@@ -985,29 +990,27 @@ class IDAKLUSolver(pybamm.BaseSolver):
 
         def f_vjp(y_bar, invar, *primals):
             print("f_vjp")
-            print("  y_bar: ", y_bar)
-            print("  primals: ", primals)
+            print('  y_bar: ', y_bar)
+            print('  primals: ', primals)
             return f_vjp_p.bind(y_bar, invar, *primals)
 
         @f_vjp_p.def_impl
         def f_vjp_impl(y_bar, invar, *primals):
-            print("f_vjp_p_impl: ", type(y_bar), type(primals))
-            print("  y_bar: ", y_bar)
-            print("  y_bar ndim: ", y_bar.ndim)
-            print("  primals: ", primals)
+            print('f_vjp_p_impl: ', type(y_bar), type(primals))
+            print('  y_bar: ', y_bar)
+            print('  y_bar ndim: ', y_bar.ndim)
+            print('  primals: ', primals)
             t = primals[0]
             inputs = primals[1:]
             indices = [k for k, y in enumerate(y_bar) if y > 0.0]
             if len(indices) == 0:
                 raise Exception(f"No output variable to differentiate wrt: {y_bar}")
             if len(indices) > 1:
-                raise Exception(
-                    f"Multiple output variables to differentiate wrt: {y_bar}"
-                )
+                raise Exception(f"Multiple output variables to differentiate wrt: {y_bar}")
             index = indices[0]
             y_dot = jaxify_solve(t, invar, *inputs)[index]
-            print("<- f_vjp_p_impl")
-            print("  y_dot: ", y_dot)
+            print('<- f_vjp_p_impl')
+            print('  y_dot: ', y_dot)
             return y_dot
 
         def f_vjp_batch(args, batch_axes):

@@ -417,18 +417,13 @@ if __name__ == "__main__":
         test_jacfwd_scalar_getvar,
         test_jacfwd_vmap_getvars,
         test_jacfwd_vmap_getvar,
-        # test_jacrev_scalar_getvars,
+        test_jacrev_scalar_getvars,
         test_jacrev_scalar_getvar,
-        # test_jacrev_vmap_getvars,
+        test_jacrev_vmap_getvars,
         test_jacrev_vmap_getvar,
         test_grad_scalar_getvar,
         test_grad_vmap_getvar,
     ]
-    if 1:
-        testlist = [
-            test_jacrev_scalar_getvars,
-            # test_jacrev_vmap_getvars,
-        ]
 
     for test in testlist:
         print(f"\nRunning test: {test.__name__}")

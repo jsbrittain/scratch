@@ -546,6 +546,13 @@ def test_grad_wrapper_sse():
         f"Got: {sse_grad}\nExpected: {sse_grad}"
 
 
+def test_f_jit_scalar():
+    print("\nf_jit")
+    f_jit = jax.jit(f)
+    print('f(t_eval, inputs): ', f(t_eval[k], inputs))
+    print('f_jit(t_eval, inputs): ', f_jit(t_eval[k], inputs))
+
+
 if __name__ == "__main__":
     testlist = [
         test_f_scalar,
@@ -579,9 +586,9 @@ if __name__ == "__main__":
         test_jax_grad,
         test_grad_wrapper_sse,
     ]
-    if 0:
+    if 1:
         testlist = [
-            test_jax_vars,
+            test_f_jit_scalar,
         ]
 
     for test in testlist:

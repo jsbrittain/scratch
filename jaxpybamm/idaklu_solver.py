@@ -1022,11 +1022,12 @@ class IDAKLUSolver(pybamm.BaseSolver):
             logging.info('f_vjp_p_impl')
             t = primals[0]
             inputs = primals[1:]
+
             y_dot = jnp.zeros_like(t)
+            js = jaxify_solve(t, invar, *inputs)
             for index, value in enumerate(y_bar):
-                # Skipping zero values greatly improves performance
                 if value > 0.0:
-                    y_dot += value * jaxify_solve(t, invar, *inputs)[index]
+                    y_dot += value * js[index]
             logging.debug('<- f_vjp_p_impl')
             return y_dot
 

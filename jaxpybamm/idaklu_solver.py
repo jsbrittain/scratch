@@ -995,7 +995,7 @@ class IDAKLUSolver(pybamm.BaseSolver):
             #   (..., dout/din1, dout/din2)
             logging.info("f_jvp_transpose")
 
-            print('f_jvo_transpose')
+            print('f_jvp_transpose')
             print('  y_bar: ', y_bar)
             print('  args: ', args)
 
@@ -1029,13 +1029,11 @@ class IDAKLUSolver(pybamm.BaseSolver):
             logging.info('f_vjp_p_impl')
             t = primals[0]
             inputs = primals[1:]
-            indices = [k for k, y in enumerate(y_bar) if y > 0.0]
-            if len(indices) == 0:
-                raise Exception(f"No output variable to differentiate wrt: {y_bar}")
-            if len(indices) > 1:
-                raise Exception(f"Multiple output variables to differentiate wrt: {y_bar}")
-            index = indices[0]
-            y_dot = jaxify_solve(t, invar, *inputs)[index]
+            y_dot = jnp.zeros_like(t)
+            for index, value in enumerate(y_bar):
+                # Skipping zero values greatly improves performance
+                if value > 0.0:
+                    y_dot += value * jaxify_solve(t, invar, *inputs)[index]
             logging.debug('<- f_vjp_p_impl')
             return y_dot
 

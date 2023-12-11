@@ -465,7 +465,7 @@ def test_value_and_grad_vmap():
 
 def test_jax_vars():
     print("\njax_vars")
-    out = idaklu_solver.jax_vars()
+    out = idaklu_solver.jax_value()
     print(out)
     for outvar in output_variables:
         flat_out, _ = tree_flatten(out[outvar])
@@ -487,18 +487,63 @@ def test_jax_grad():
             f"{outvar}: Got: {flat_out}\nExpected: {check}"
 
 
-def test_grad_wrapper():
+def test_grad_wrapper_sse():
     print("\ngrad_wrapper")
-    data = sim["Terminal voltage [V]"](t_eval)
     vf = jax.vmap(
         idaklu_solver.get_var(f, "Terminal voltage [V]"),
         in_axes=(0, None)
     )
 
-    def rms(t):
-        return jnp.sum((vf(t, inputs) - data) ** 2)
+    # Use surrogate for experimental data
+    data = sim["Terminal voltage [V]"](t_eval)
 
-    print(f"RMS: {rms(t_eval)} {jax.grad(rms)(t_eval)}")
+    # Define SSE function to minimise - note that although f returns a vector over time,
+    # sse() returns a scalar so can be passed to grad().
+    def sse(t, inputs):
+        return jnp.sum((vf(t_eval, inputs) - data) ** 2)
+
+    # Create an imperfect prediction
+    inputs_pred = inputs.copy()
+    inputs_pred["Current function [A]"] = 0.150
+    sim_pred = idaklu_solver.solve(
+        model,
+        t_eval,
+        inputs=inputs_pred,
+        calculate_sensitivities=True,
+    )
+    pred = sim_pred["Terminal voltage [V]"]
+
+    # Check value against actual SSE
+    sse_actual = np.sum((pred(t_eval) - data) ** 2)
+    print(f"SSE: {sse(t_eval, inputs_pred)}")
+    print(f"SSE-actual: {sse_actual}")
+    flat_out, _ = tree_flatten(sse(t_eval, inputs_pred))
+    flat_out = np.array([f for f in flat_out]).flatten()
+    flat_check_val, _ = tree_flatten(sse_actual)
+    assert np.allclose(flat_out, flat_check_val, 1e-3), \
+        f"Got: {flat_out}\nExpected: {flat_check_val}"
+
+    # Check grad against actual
+    sse_grad_actual = {}
+    for k, v in inputs_pred.items():
+        sse_grad_actual[k] = 2 * np.sum((pred(t_eval) - data) * pred.sensitivities[k])
+    sse_grad = jax.grad(sse, argnums=1)(t_eval, inputs_pred)
+    print(f"SSE-grad: {sse_grad}")
+    print(f"SSE-grad-actual: {sse_grad_actual}")
+    flat_out, _ = tree_flatten(sse_grad)
+    flat_out = np.array([f for f in flat_out]).flatten()
+    flat_check_grad, _ = tree_flatten(sse_grad_actual)
+    assert np.allclose(flat_out, flat_check_grad, 1e-3), \
+        f"Got: {flat_out}\nExpected: {flat_check_grad}"
+
+    # Check value_and_grad return
+    sse_val, sse_grad = jax.value_and_grad(sse, argnums=1)(t_eval, inputs_pred)
+    flat_sse_grad, _ = tree_flatten(sse_grad)
+    flat_sse_grad = np.array([f for f in flat_sse_grad]).flatten()
+    assert np.allclose(sse_val, flat_check_val, 1e3), \
+        f"Got: {sse_val}\nExpected: {flat_check_val}"
+    assert np.allclose(flat_sse_grad, flat_check_grad, 1e3), \
+        f"Got: {sse_grad}\nExpected: {sse_grad}"
 
 
 if __name__ == "__main__":
@@ -532,11 +577,11 @@ if __name__ == "__main__":
         test_value_and_grad_vmap,
         test_jax_vars,
         test_jax_grad,
-        test_grad_wrapper,
+        test_grad_wrapper_sse,
     ]
-    if 1:
+    if 0:
         testlist = [
-            test_grad_wrapper,
+            test_jax_vars,
         ]
 
     for test in testlist:

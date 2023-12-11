@@ -1,7 +1,0 @@
-/Users/jsb/repos/jsbrittain/scratch/jax_idaklu/build/temp.macosx-13.0-arm64-cpython-311/CMakeFiles/cpu_ops.dir
-/Users/jsb/repos/jsbrittain/scratch/jax_idaklu/build/temp.macosx-13.0-arm64-cpython-311/CMakeFiles/edit_cache.dir
-/Users/jsb/repos/jsbrittain/scratch/jax_idaklu/build/temp.macosx-13.0-arm64-cpython-311/CMakeFiles/rebuild_cache.dir
-/Users/jsb/repos/jsbrittain/scratch/jax_idaklu/build/temp.macosx-13.0-arm64-cpython-311/CMakeFiles/list_install_components.dir
-/Users/jsb/repos/jsbrittain/scratch/jax_idaklu/build/temp.macosx-13.0-arm64-cpython-311/CMakeFiles/install.dir
-/Users/jsb/repos/jsbrittain/scratch/jax_idaklu/build/temp.macosx-13.0-arm64-cpython-311/CMakeFiles/install/local.dir
-/Users/jsb/repos/jsbrittain/scratch/jax_idaklu/build/temp.macosx-13.0-arm64-cpython-311/CMakeFiles/install/strip.dir

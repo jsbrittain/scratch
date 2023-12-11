@@ -695,15 +695,11 @@ class IDAKLUSolver(pybamm.BaseSolver):
         def f_isolated(*args, **kwargs):
             out = f(*args, **kwargs)
             index = self.jaxify_output_variables.index(varname)
-            print('f_isolated')
             if out.ndim == 0:
-                print('  out(0): ', out)
                 return out
             elif out.ndim == 1:
-                print('  out(1): ', out[index])
                 return out[index]
             else:
-                print('  out(2): ', out[:, index])
                 return out[:, index]
 
         return f_isolated
@@ -714,18 +710,51 @@ class IDAKLUSolver(pybamm.BaseSolver):
         def f_isolated(*args, **kwargs):
             out = f(*args, **kwargs)
             index = np.array([self.jaxify_output_variables.index(varname) for varname in varnames])
-            print('f_isolated')
             if out.ndim == 0:
-                print('  out(0): ', out)
                 return out
             elif out.ndim == 1:
-                print('  out(1): ', out[index])
                 return out[index]
             else:
-                print('  out(2): ', out[:, index])
                 return out[:, index]
 
         return f_isolated
+
+    def jax_value(self, *, f=None, t=None, inputs=None, output_variables=None):
+        """Helper function to compute the gradient of a jaxified expression"""
+        try:
+            f = f if f else self.jaxify_f
+            t = t if t else self.jaxify_t_eval
+            inputs = inputs if inputs else self.jax_inputs
+            output_variables = output_variables if output_variables else self.jaxify_output_variables
+        except AttributeError:
+            raise pybamm.SolverError("jaxify() must be called before jax_grad()")
+        d = {}
+        for outvar in self.jaxify_output_variables:
+            d[outvar] = jax.vmap(
+                self.get_var(f, outvar),
+                in_axes=(0, None),
+            )(t, inputs)
+        return d
+
+    def jax_grad(self, *, f=None, t=None, inputs=None, output_variables=None):
+        """Helper function to compute the gradient of a jaxified expression"""
+        try:
+            f = f if f else self.jaxify_f
+            t = t if t else self.jaxify_t_eval
+            inputs = inputs if inputs else self.jax_inputs
+            output_variables = output_variables if output_variables else self.jaxify_output_variables
+        except AttributeError:
+            raise pybamm.SolverError("jaxify() must be called before jax_grad()")
+        d = {}
+        for outvar in self.jaxify_output_variables:
+            d[outvar] = jax.vmap(
+                jax.grad(
+                    self.get_var(f, outvar),
+                    argnums=1,
+                ),
+                in_axes=(0, None),
+            )(t, inputs)
+        return d
 
     def jaxify(
         self,
@@ -739,9 +768,9 @@ class IDAKLUSolver(pybamm.BaseSolver):
         """JAXify the model and solver"""
 
         solver = self
+        self.jaxify_t_eval = t_eval
         self.jaxify_output_variables = output_variables
         self.jax_inputs = inputs
-        self.jax_n_out = len(output_variables)
 
         cpu_ops_spec = importlib.util.find_spec("idaklu_jax.cpu_ops")
         if cpu_ops_spec:
@@ -759,13 +788,12 @@ class IDAKLUSolver(pybamm.BaseSolver):
             for ix, (k, v) in enumerate(inputs.items()):
                 d[k] = inputs_values[ix]
             # Solver
-            if False:
-                print("Solver:")
-                print("  t_eval: ", t_eval)
-                print("  t: ", t)
-                print("  invar: ", invar)
-                print("  inputs: ", dict(d))
-                print("  calculate_sensitivities: ", invar is not None)
+            logging.debug("Solver:")
+            logging.debug("  t_eval: ", t_eval)
+            logging.debug("  t: ", t)
+            logging.debug("  invar: ", invar)
+            logging.debug("  inputs: ", dict(d))
+            logging.debug("  calculate_sensitivities: ", invar is not None)
             sim = solver.solve(
                 model,
                 t_eval,
@@ -809,6 +837,8 @@ class IDAKLUSolver(pybamm.BaseSolver):
             logging.debug("f [exit]: ", (out))
             return out
 
+        self.jaxify_f = f
+
         @f_p.def_impl
         def f_impl(t, *inputs):
             """Concrete implementation of Primitive"""
@@ -823,8 +853,7 @@ class IDAKLUSolver(pybamm.BaseSolver):
             Takes abstractions of inputs, returned ShapedArray for result of primitive
             """
             logging.info("f_abstract_eval")
-            raise "AAA"
-            y_aval = jax.core.ShapedArray((*t.shape, self.jax_n_out), t.dtype)
+            y_aval = jax.core.ShapedArray((*t.shape, len(output_variables)), t.dtype)
             return y_aval
 
         def f_batch(args, batch_axes):
@@ -860,7 +889,7 @@ class IDAKLUSolver(pybamm.BaseSolver):
             )
 
             y = f_p.bind(*primals)
-            y_dot = f_jvp_p.bind(  # tangents_out = J.v
+            y_dot = f_jvp_p.bind(
                 *primals,
                 *zero_mapped_tangents,
             )
@@ -892,7 +921,7 @@ class IDAKLUSolver(pybamm.BaseSolver):
             return y_dot
 
         def f_jvp_batch(args, batch_axes):
-            print("f_jvp_batch: ", type(args), type(batch_axes))
+            logging.info("f_jvp_batch")
             primals = args[: len(args) // 2]
             tangents = args[len(args) // 2 :]
             batch_primals = batch_axes[: len(batch_axes) // 2]
@@ -955,20 +984,20 @@ class IDAKLUSolver(pybamm.BaseSolver):
             primals = args[: len(args) // 2]
             tangents = args[len(args) // 2 :]
             t = primals[0]
-            n = self.jax_n_out
-            out = jax.core.ShapedArray((n,), t.dtype)
+            out = jax.core.ShapedArray((len(output_variables),), t.dtype)
             logging.info("<- f_jvp_abstract_eval")
             return out
 
         def f_jvp_transpose(y_bar, *args):
             # Note: y_bar indexes the OUTPUT variable, e.g. [1, 0, 0] is the
-            # FIRST of three OUTPUT variables.
-            print("f_jvp_transpose: ")
-            print("  y_bar: ", y_bar)
-            print("  y_bar shape: ", y_bar.shape)
-            print("  y_bar ndim: ", y_bar.ndim)
-            print("  y_bar len: ", len(y_bar))
-            print("  args: ", args)
+            # first of three outputs. The function returns primals and tangents
+            # corresponding to how each of the inputs derives that output, e.g.
+            #   (..., dout/din1, dout/din2)
+            logging.info("f_jvp_transpose")
+
+            print('f_jvo_transpose')
+            print('  y_bar: ', y_bar)
+            print('  args: ', args)
 
             primals = args[: len(args) // 2]
             tangents = args[len(args) // 2 :]
@@ -980,8 +1009,11 @@ class IDAKLUSolver(pybamm.BaseSolver):
                 js = f_vjp_p.bind(y_bar, invar, *primals)
                 tangents_out.append(js)
 
-            out = None, *([None] * len(tangents_out)), None, *tangents_out
-            print("<- f_jvp_transpose: ", out)
+            out = (
+                None, *([None] * len(tangents_out)),  # primals
+                None, *tangents_out,  # tangents
+            )
+            logging.debug("<- f_jvp_transpose")
             return out
 
         ad.primitive_transposes[f_jvp_p] = f_jvp_transpose
@@ -989,17 +1021,12 @@ class IDAKLUSolver(pybamm.BaseSolver):
         f_vjp_p = jax.core.Primitive("f_vjp")
 
         def f_vjp(y_bar, invar, *primals):
-            print("f_vjp")
-            print('  y_bar: ', y_bar)
-            print('  primals: ', primals)
+            logging.info("f_vjp")
             return f_vjp_p.bind(y_bar, invar, *primals)
 
         @f_vjp_p.def_impl
         def f_vjp_impl(y_bar, invar, *primals):
-            print('f_vjp_p_impl: ', type(y_bar), type(primals))
-            print('  y_bar: ', y_bar)
-            print('  y_bar ndim: ', y_bar.ndim)
-            print('  primals: ', primals)
+            logging.info('f_vjp_p_impl')
             t = primals[0]
             inputs = primals[1:]
             indices = [k for k, y in enumerate(y_bar) if y > 0.0]
@@ -1009,14 +1036,11 @@ class IDAKLUSolver(pybamm.BaseSolver):
                 raise Exception(f"Multiple output variables to differentiate wrt: {y_bar}")
             index = indices[0]
             y_dot = jaxify_solve(t, invar, *inputs)[index]
-            print('<- f_vjp_p_impl')
-            print('  y_dot: ', y_dot)
+            logging.debug('<- f_vjp_p_impl')
             return y_dot
 
         def f_vjp_batch(args, batch_axes):
-            print("f_vjp_p_batch")
-            print("  args: ", args)
-            print("  batch_axes: ", batch_axes)
+            logging.info("f_vjp_p_batch")
             y_bars, invar, t, *inputs = args
 
             if batch_axes[0] is not None and all([b is None for b in batch_axes[1:]]):
@@ -1042,40 +1066,40 @@ class IDAKLUSolver(pybamm.BaseSolver):
 
         batching.primitive_batchers[f_vjp_p] = f_vjp_batch
 
+        def f_lowering_cpu(ctx, t, *inputs):
+            logging.info("jaxify_lowering")
+            t_aval = ctx.avals_in[0]
+            np_dtype = t_aval.dtype
+
+            if np_dtype == np.float64:
+                op_name = "cpu_kepler_f64"
+            else:
+                raise NotImplementedError(f"Unsupported dtype {np_dtype}")
+
+            dtype = mlir.ir.RankedTensorType(t.type)
+            dims = dtype.shape
+            layout = tuple(range(len(dims) - 1, -1, -1))
+            size = np.prod(dims).astype(np.int64)
+            results = custom_call(
+                op_name,
+                result_types=[dtype],  # ...
+                operands=[
+                    mlir.ir_constant(size),
+                    t,
+                    t,
+                ],  # TODO: Passing t twice to simulate inputs of equal length
+                operand_layouts=[(), layout, layout],
+                result_layouts=[layout],  # ...
+            ).results
+            return results
+
+        mlir.register_lowering(
+            f_p,
+            f_lowering_cpu,
+            platform="cpu",
+        )
+
         if False:
-
-            def f_lowering_cpu(ctx, t, *inputs):
-                logging.info("jaxify_lowering: ")
-                t_aval = ctx.avals_in[0]
-                np_dtype = t_aval.dtype
-
-                if np_dtype == np.float64:
-                    op_name = "cpu_kepler_f64"
-                else:
-                    raise NotImplementedError(f"Unsupported dtype {np_dtype}")
-
-                dtype = mlir.ir.RankedTensorType(t.type)
-                dims = dtype.shape
-                layout = tuple(range(len(dims) - 1, -1, -1))
-                size = np.prod(dims).astype(np.int64)
-                results = custom_call(
-                    op_name,
-                    result_types=[dtype],  # ...
-                    operands=[
-                        mlir.ir_constant(size),
-                        t,
-                        t,
-                    ],  # TODO: Passing t twice to simulate inputs of equal length
-                    operand_layouts=[(), layout, layout],
-                    result_layouts=[layout],  # ...
-                ).results
-                return results
-
-            mlir.register_lowering(
-                f_p,
-                f_lowering_cpu,
-                platform="cpu",
-            )
 
             # def f_lowering(ctx, mean_anom, ecc, *, platform="cpu"):
             def f_vjp_lowering_cpu(ctx, t, *inputs):

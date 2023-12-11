@@ -9,6 +9,7 @@ from jax.interpreters.mlir import custom_call
 from jax._src.lib.mlir.dialects import hlo
 from jax.tree_util import tree_flatten, tree_unflatten
 from jax.lib import xla_client
+import jax.numpy as jnp
 
 num_inputs = 2
 if num_inputs == 0:
@@ -48,7 +49,6 @@ sim = idaklu_solver.solve(
     inputs=inputs,
     calculate_sensitivities=True,
 )
-data = sim["Terminal voltage [V]"](t_eval)
 
 # Get jax expression for IDAKLU solver
 output_variables = [
@@ -186,6 +186,18 @@ def test_jacfwd_scalar():
     assert np.allclose(flat_out, check.flatten())
 
 
+def test_jacfwd_vector():
+    print("\njac_fwd (vector)")
+    out = jax.jacfwd(f, argnums=1)(t_eval, x)
+    print(out)
+    flat_out, _ = tree_flatten(out)
+    flat_out = np.concatenate(np.array([f for f in flat_out]), 1).transpose().flatten()
+    check = np.array(
+        [sim[outvar].sensitivities[invar] for invar in x for outvar in output_variables]
+    )
+    assert np.allclose(flat_out, check.flatten())
+
+
 def test_jacfwd_vmap():
     print("\njac_fwd (vmap)")
     out = jax.vmap(
@@ -214,6 +226,18 @@ def test_jacrev_scalar():
             for outvar in output_variables
         ]
     ).transpose()
+    assert np.allclose(flat_out, check.flatten())
+
+
+def test_jacrev_vector():
+    print("\njac_rev (vector)")
+    out = jax.jacrev(f, argnums=1)(t_eval, x)
+    print(out)
+    flat_out, _ = tree_flatten(out)
+    flat_out = np.concatenate(np.array([f for f in flat_out]), 1).transpose().flatten()
+    check = np.array(
+        [sim[outvar].sensitivities[invar] for invar in x for outvar in output_variables]
+    )
     assert np.allclose(flat_out, check.flatten())
 
 
@@ -398,6 +422,85 @@ def test_grad_vmap_getvar():
         assert np.allclose(flat_out, check.flatten())
 
 
+def test_value_and_grad_scalar():
+    for outvar in output_variables:
+        print(f"\nvalue_and_grad (scalar): {outvar}")
+        primals, tangents = jax.value_and_grad(
+            idaklu_solver.get_var(f, outvar),
+            argnums=1,
+        )(t_eval[k], x)
+        print(primals)
+        flat_p, _ = tree_flatten(primals)
+        flat_p = np.array([f for f in flat_p]).flatten()
+        check = np.array(sim[outvar].data[k])
+        assert np.allclose(flat_p, check.flatten())
+        print(tangents)
+        flat_t, _ = tree_flatten(tangents)
+        flat_t = np.array([f for f in flat_t]).flatten()
+        check = np.array([sim[outvar].sensitivities[invar][k] for invar in x])
+        assert np.allclose(flat_t, check.flatten())
+
+
+def test_value_and_grad_vmap():
+    for outvar in output_variables:
+        print(f"\nvalue_and_grad (vmap): {outvar}")
+        primals, tangents = jax.vmap(
+            jax.value_and_grad(
+                idaklu_solver.get_var(f, outvar),
+                argnums=1,
+            ),
+            in_axes=(0, None),
+        )(t_eval, x)
+        print(primals)
+        flat_p, _ = tree_flatten(primals)
+        flat_p = np.array([f for f in flat_p]).flatten()
+        check = np.array(sim[outvar].data)
+        assert np.allclose(flat_p, check.flatten())
+        print(tangents)
+        flat_t, _ = tree_flatten(tangents)
+        flat_t = np.array([f for f in flat_t]).flatten()
+        check = np.array([sim[outvar].sensitivities[invar] for invar in x])
+        assert np.allclose(flat_t, check.flatten())
+
+
+def test_jax_vars():
+    print("\njax_vars")
+    out = idaklu_solver.jax_vars()
+    print(out)
+    for outvar in output_variables:
+        flat_out, _ = tree_flatten(out[outvar])
+        flat_out = np.array([f for f in flat_out]).flatten()
+        check = np.array(sim[outvar].data)
+        assert np.allclose(flat_out, check.flatten()), \
+            f"{outvar}: Got: {flat_out}\nExpected: {check}"
+
+
+def test_jax_grad():
+    print("\njax_grad")
+    out = idaklu_solver.jax_grad()
+    print(out)
+    for outvar in output_variables:
+        flat_out, _ = tree_flatten(out[outvar])
+        flat_out = np.array([f for f in flat_out]).flatten()
+        check = np.array([sim[outvar].sensitivities[invar] for invar in x])
+        assert np.allclose(flat_out, check.flatten()), \
+            f"{outvar}: Got: {flat_out}\nExpected: {check}"
+
+
+def test_grad_wrapper():
+    print("\ngrad_wrapper")
+    data = sim["Terminal voltage [V]"](t_eval)
+    vf = jax.vmap(
+        idaklu_solver.get_var(f, "Terminal voltage [V]"),
+        in_axes=(0, None)
+    )
+
+    def rms(t):
+        return jnp.sum((vf(t, inputs) - data) ** 2)
+
+    print(f"RMS: {rms(t_eval)} {jax.grad(rms)(t_eval)}")
+
+
 if __name__ == "__main__":
     testlist = [
         test_f_scalar,
@@ -410,8 +513,10 @@ if __name__ == "__main__":
         test_getvar_vector,
         test_getvar_vmap,
         test_jacfwd_scalar,
+        test_jacfwd_vector,
         test_jacfwd_vmap,
         test_jacrev_scalar,
+        # test_jacrev_vector,
         test_jacrev_vmap,
         test_jacfwd_scalar_getvars,
         test_jacfwd_scalar_getvar,
@@ -423,7 +528,16 @@ if __name__ == "__main__":
         test_jacrev_vmap_getvar,
         test_grad_scalar_getvar,
         test_grad_vmap_getvar,
+        test_value_and_grad_scalar,
+        test_value_and_grad_vmap,
+        test_jax_vars,
+        test_jax_grad,
+        test_grad_wrapper,
     ]
+    if 1:
+        testlist = [
+            test_grad_wrapper,
+        ]
 
     for test in testlist:
         print(f"\nRunning test: {test.__name__}")

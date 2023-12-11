@@ -4,11 +4,14 @@ pyproject.toml
 setup.py
 lib/cpu_ops.cc
 lib/gpu_ops.cc
-lib/kepler.h
-lib/kernel_helpers.h
 lib/kernels.cc.cu
 lib/kernels.h
 lib/pybind11_kernel_helpers.h
+src/idaklujax.egg-info/PKG-INFO
+src/idaklujax.egg-info/SOURCES.txt
+src/idaklujax.egg-info/dependency_links.txt
+src/idaklujax.egg-info/requires.txt
+src/idaklujax.egg-info/top_level.txt
 src/kepler_jax/__init__.py
 src/kepler_jax/cpu_ops.cpython-311-darwin.so
 src/kepler_jax/kepler_jax.py
@@ -18,8 +21,5 @@ src/kepler_jax.egg-info/SOURCES.txt
 src/kepler_jax.egg-info/dependency_links.txt
 src/kepler_jax.egg-info/requires.txt
 src/kepler_jax.egg-info/top_level.txt
-src/kepler_jax/__pycache__/__init__.cpython-311.pyc
-src/kepler_jax/__pycache__/kepler_jax.cpython-311.pyc
-src/kepler_jax/__pycache__/kepler_jax_version.cpython-311.pyc
 tests/test_kepler_jax.py
 tests/__pycache__/test_kepler_jax.cpython-311-pytest-7.4.3.pyc

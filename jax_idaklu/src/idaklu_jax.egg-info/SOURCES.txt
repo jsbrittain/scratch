@@ -3,12 +3,14 @@ README.md
 pyproject.toml
 setup.py
 lib/cpu_ops.cc
-lib/gpu_ops.cc
-lib/kepler.h
 lib/kernel_helpers.h
-lib/kernels.cc.cu
 lib/kernels.h
 lib/pybind11_kernel_helpers.h
+src/idaklu_jax.egg-info/PKG-INFO
+src/idaklu_jax.egg-info/SOURCES.txt
+src/idaklu_jax.egg-info/dependency_links.txt
+src/idaklu_jax.egg-info/requires.txt
+src/idaklu_jax.egg-info/top_level.txt
 src/kepler_jax/__init__.py
 src/kepler_jax/cpu_ops.cpython-311-darwin.so
 src/kepler_jax/kepler_jax.py

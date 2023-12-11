@@ -1,5 +1,5 @@
 Metadata-Version: 2.1
-Name: kepler-jax
+Name: idaklu-jax
 Version: 0.0.1
 Summary: A simple demonstration of how you can extend JAX with custom C++ and CUDA ops
 Home-page: https://github.com/dfm/extending-jax

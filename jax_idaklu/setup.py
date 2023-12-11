@@ -61,8 +61,8 @@ class CMakeBuildExt(build_ext):
             ),
             "-DCMAKE_PREFIX_PATH={}".format(pybind11.get_cmake_dir()),
         ]
-        if os.environ.get("KEPLER_JAX_CUDA", "no").lower() == "yes":
-            cmake_args.append("-DKEPLER_JAX_CUDA=yes")
+        if os.environ.get("idaklu_JAX_CUDA", "no").lower() == "yes":
+            cmake_args.append("-Didaklu_JAX_CUDA=yes")
 
         os.makedirs(self.build_temp, exist_ok=True)
         subprocess.check_call(
@@ -88,25 +88,25 @@ class CMakeBuildExt(build_ext):
 
 extensions = [
     Extension(
-        "kepler_jax.cpu_ops",
-        ["src/kepler_jax/src/cpu_ops.cc"],
+        "idaklu_jax.cpu_ops",
+        ["src/idaklu_jax/src/cpu_ops.cc"],
     ),
 ]
 
-if os.environ.get("KEPLER_JAX_CUDA", "no").lower() == "yes":
+if os.environ.get("idaklu_JAX_CUDA", "no").lower() == "yes":
     extensions.append(
         Extension(
-            "kepler_jax.gpu_ops",
+            "idaklu_jax.gpu_ops",
             [
-                "src/kepler_jax/src/gpu_ops.cc",
-                "src/kepler_jax/src/cuda_kernels.cc.cu",
+                "src/idaklu_jax/src/gpu_ops.cc",
+                "src/idaklu_jax/src/cuda_kernels.cc.cu",
             ],
         )
     )
 
 
 setup(
-    name="kepler_jax",
+    name="idaklu_jax",
     version="0.0.1",
     author="",
     author_email="",

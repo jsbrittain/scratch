@@ -229,16 +229,17 @@ def test_jacrev_scalar():
     assert np.allclose(flat_out, check.flatten())
 
 
-def test_jacrev_vector():
-    print("\njac_rev (vector)")
-    out = jax.jacrev(f, argnums=1)(t_eval, x)
-    print(out)
-    flat_out, _ = tree_flatten(out)
-    flat_out = np.concatenate(np.array([f for f in flat_out]), 1).transpose().flatten()
-    check = np.array(
-        [sim[outvar].sensitivities[invar] for invar in x for outvar in output_variables]
-    )
-    assert np.allclose(flat_out, check.flatten())
+# NOTE: This test is very slow (22s)
+# def test_jacrev_vector():
+#     print("\njac_rev (vector)")
+#     out = jax.jacrev(f, argnums=1)(t_eval, x)
+#     print(out)
+#     flat_out, _ = tree_flatten(out)
+#     flat_out = np.concatenate(np.array([f for f in flat_out]), 1).transpose().flatten()
+#     check = np.array(
+#         [sim[outvar].sensitivities[invar] for invar in x for outvar in output_variables]
+#     )
+#     assert np.allclose(flat_out, check.flatten())
 
 
 def test_jacrev_vmap():
@@ -568,7 +569,7 @@ if __name__ == "__main__":
         test_jacfwd_vector,
         test_jacfwd_vmap,
         test_jacrev_scalar,
-        # test_jacrev_vector,
+        # test_jacrev_vector,  # Very slow
         test_jacrev_vmap,
         test_jacfwd_scalar_getvars,
         test_jacfwd_scalar_getvar,

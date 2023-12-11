@@ -907,17 +907,14 @@ class IDAKLUSolver(pybamm.BaseSolver):
             tangents = args[len(args) // 2 :]
             t = primals[0]
             inputs = primals[1:]
+            inputs_t = tangents[1:]
 
-            # Identify input variable to differentiate wrt
-            indices = [k for k, t in enumerate(tangents[1:]) if t > 0.0]
-            if len(indices) == 0:
-                raise Exception(f"No output variable to differentiate wrt: {y_bar}")
-            if len(indices) > 1:
-                raise Exception(f"Multiple output variables to differentiate wrt: {y_bar}")
-            invar_index = indices[0]
-            invar = list(self.jax_inputs.keys())[invar_index]
-            y_dot = jaxify_solve(t, invar, *inputs)
-
+            y_dot = jnp.zeros_like(t)
+            for index, value in enumerate(inputs_t):
+                # Skipping zero values greatly improves performance
+                if value > 0.0:
+                    invar = list(self.jax_inputs.keys())[index]
+                    y_dot += value * jaxify_solve(t, invar, *inputs)
             return y_dot
 
         def f_jvp_batch(args, batch_axes):
@@ -994,10 +991,6 @@ class IDAKLUSolver(pybamm.BaseSolver):
             # corresponding to how each of the inputs derives that output, e.g.
             #   (..., dout/din1, dout/din2)
             logging.info("f_jvp_transpose")
-
-            print('f_jvp_transpose')
-            print('  y_bar: ', y_bar)
-            print('  args: ', args)
 
             primals = args[: len(args) // 2]
             tangents = args[len(args) // 2 :]

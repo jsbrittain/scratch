@@ -56,7 +56,7 @@ output_variables = [
     "Discharge capacity [A.h]",
     "Loss of lithium inventory [%]",
 ]
-f_jax = idaklu_solver.jaxify(
+f = idaklu_solver.jaxify(
     model,
     t_eval,
     output_variables=output_variables,
@@ -66,7 +66,6 @@ f_jax = idaklu_solver.jaxify(
 
 # TEST
 
-f = f_jax
 x = inputs
 
 in_axes = (0, None)
@@ -195,7 +194,8 @@ def test_jacfwd_vector():
     check = np.array(
         [sim[outvar].sensitivities[invar] for invar in x for outvar in output_variables]
     )
-    assert np.allclose(flat_out, check.flatten())
+    assert np.allclose(flat_out, check.flatten()), \
+        f"Got: {flat_out}\nExpected: {check}"
 
 
 def test_jacfwd_vmap():
@@ -230,16 +230,16 @@ def test_jacrev_scalar():
 
 
 # NOTE: This test is very slow (22s)
-# def test_jacrev_vector():
-#     print("\njac_rev (vector)")
-#     out = jax.jacrev(f, argnums=1)(t_eval, x)
-#     print(out)
-#     flat_out, _ = tree_flatten(out)
-#     flat_out = np.concatenate(np.array([f for f in flat_out]), 1).transpose().flatten()
-#     check = np.array(
-#         [sim[outvar].sensitivities[invar] for invar in x for outvar in output_variables]
-#     )
-#     assert np.allclose(flat_out, check.flatten())
+def skip_test_jacrev_vector():
+    print("\njac_rev (vector)")
+    out = jax.jacrev(f, argnums=1)(t_eval, x)
+    print(out)
+    flat_out, _ = tree_flatten(out)
+    flat_out = np.concatenate(np.array([f for f in flat_out]), 1).transpose().flatten()
+    check = np.array(
+        [sim[outvar].sensitivities[invar] for invar in x for outvar in output_variables]
+    )
+    assert np.allclose(flat_out, check.flatten())
 
 
 def test_jacrev_vmap():
@@ -489,7 +489,7 @@ def test_jax_grad():
 
 
 def test_grad_wrapper_sse():
-    print("\ngrad_wrapper")
+    print("\ngrad_wrapper_sse")
     vf = jax.vmap(
         idaklu_solver.get_var(f, "Terminal voltage [V]"),
         in_axes=(0, None)
@@ -555,43 +555,56 @@ def test_f_jit_scalar():
 
 
 if __name__ == "__main__":
-    testlist = [
-        test_f_scalar,
-        test_f_vector,
-        test_f_vmap,
-        test_getvars_scalar,
-        test_getvars_vector,
-        test_getvars_vmap,
-        test_getvar_scalar,
-        test_getvar_vector,
-        test_getvar_vmap,
-        test_jacfwd_scalar,
-        test_jacfwd_vector,
-        test_jacfwd_vmap,
-        test_jacrev_scalar,
-        # test_jacrev_vector,  # Very slow
-        test_jacrev_vmap,
-        test_jacfwd_scalar_getvars,
-        test_jacfwd_scalar_getvar,
-        test_jacfwd_vmap_getvars,
-        test_jacfwd_vmap_getvar,
-        test_jacrev_scalar_getvars,
-        test_jacrev_scalar_getvar,
-        test_jacrev_vmap_getvars,
-        test_jacrev_vmap_getvar,
-        test_grad_scalar_getvar,
-        test_grad_vmap_getvar,
-        test_value_and_grad_scalar,
-        test_value_and_grad_vmap,
-        test_jax_vars,
-        test_jax_grad,
-        test_grad_wrapper_sse,
-    ]
-    if 1:
+    output_variables_list = output_variables
+    for output_count in [1, len(output_variables)]:
+        # Reset output variables list
+        output_variables = output_variables_list[:output_count]
+        f = idaklu_solver.jaxify(
+            model,
+            t_eval,
+            output_variables=output_variables,
+            inputs=inputs,
+            calculate_sensitivities=True,
+        )
+        print('Running tests with output_variables: ', output_variables)
         testlist = [
-            test_f_jit_scalar,
+            test_f_scalar,
+            test_f_vector,
+            test_f_vmap,
+            test_getvars_scalar,
+            test_getvars_vector,
+            test_getvars_vmap,
+            test_getvar_scalar,
+            test_getvar_vector,
+            test_getvar_vmap,
+            test_jacfwd_scalar,
+            test_jacfwd_vector,  # not working with multiple output variables
+            test_jacfwd_vmap,
+            test_jacrev_scalar,
+            # skip_test_jacrev_vector,  # not working - is this required?
+            test_jacrev_vmap,
+            test_jacfwd_scalar_getvars,
+            test_jacfwd_scalar_getvar,
+            test_jacfwd_vmap_getvars,
+            test_jacfwd_vmap_getvar,
+            test_jacrev_scalar_getvars,
+            test_jacrev_scalar_getvar,
+            test_jacrev_vmap_getvars,
+            test_jacrev_vmap_getvar,
+            test_grad_scalar_getvar,
+            test_grad_vmap_getvar,
+            test_value_and_grad_scalar,
+            test_value_and_grad_vmap,
+            test_jax_vars,
+            test_jax_grad,
+            test_grad_wrapper_sse,
+            # test_f_jit_scalar,  # not working (yet)
         ]
+        if 0:
+            testlist = [
+                test_jacfwd_vector,  # not working with multiple output variables
+            ]
 
-    for test in testlist:
-        print(f"\nRunning test: {test.__name__}")
-        test()
+        for test in testlist:
+            print(f"\nRunning test: {test.__name__}")
+            test()

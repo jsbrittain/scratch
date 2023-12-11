@@ -801,18 +801,21 @@ class IDAKLUSolver(pybamm.BaseSolver):
                 calculate_sensitivities=invar is not None,
             )
             if invar:
-                tk = np.argmin(abs(t_eval - t))
+                # Provide vector support for time
+                if t.ndim == 0:
+                    t = np.array([t])
+                tk = list(map(lambda t: np.argmin(abs(t_eval - t)), t))
                 out = jnp.array(
                     [
                         jnp.array(sim[outvar].sensitivities[invar][tk])
                         for outvar in output_variables
                     ]
                 ).squeeze()
-                return out
+                return out.T
             else:
                 return jnp.array(
                     [np.array(sim[outvar](t)) for outvar in output_variables]
-                )
+                ).T
 
         # JAX PRIMITIVE DEFINITION
 
@@ -828,12 +831,7 @@ class IDAKLUSolver(pybamm.BaseSolver):
             """
             logging.info("f: ", type(t), type(inputs))
             flatargs, treedef = tree_flatten((t, inputs))
-            if isinstance(t, list) or isinstance(t, np.ndarray):
-                # Map over temporal vector
-                out = jnp.array(list(map(lambda tp: f(tp, inputs), t)))
-            else:
-                # Scalar
-                out = f_p.bind(*flatargs)
+            out = f_p.bind(*flatargs)
             logging.debug("f [exit]: ", (out))
             return out
 
@@ -909,12 +907,22 @@ class IDAKLUSolver(pybamm.BaseSolver):
             inputs = primals[1:]
             inputs_t = tangents[1:]
 
-            y_dot = jnp.zeros_like(t)
+            if t.ndim == 0:
+                y_dot = jnp.zeros_like(t)
+            else:
+                # This permits direct vector indexing with time for jaxfwd
+                y_dot = jnp.zeros((len(t), len(output_variables)))
             for index, value in enumerate(inputs_t):
                 # Skipping zero values greatly improves performance
                 if value > 0.0:
                     invar = list(self.jax_inputs.keys())[index]
-                    y_dot += value * jaxify_solve(t, invar, *inputs)
+                    js = jaxify_solve(t, invar, *inputs)
+                    if js.ndim == 0:
+                        js = jnp.array([js])
+                    if js.ndim == 1 and t.ndim > 0:
+                        # This permits direct vector indexing with time
+                        js = js.reshape((t.shape[0], 1))
+                    y_dot += value * js
             return y_dot
 
         def f_jvp_batch(args, batch_axes):
@@ -1025,6 +1033,8 @@ class IDAKLUSolver(pybamm.BaseSolver):
 
             y_dot = jnp.zeros_like(t)
             js = jaxify_solve(t, invar, *inputs)
+            if js.ndim == 0:
+                js = jnp.array([js])
             for index, value in enumerate(y_bar):
                 if value > 0.0:
                     y_dot += value * js[index]

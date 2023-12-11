@@ -230,8 +230,11 @@ def test_jacrev_scalar():
 
 
 # NOTE: This test is very slow (22s)
-def skip_test_jacrev_vector():
+def test_jacrev_vector():
     print("\njac_rev (vector)")
+    print('scalar')
+    out = jax.jacrev(f, argnums=1)(t_eval[k], x)
+    print('vector')
     out = jax.jacrev(f, argnums=1)(t_eval, x)
     print(out)
     flat_out, _ = tree_flatten(out)
@@ -239,6 +242,7 @@ def skip_test_jacrev_vector():
     check = np.array(
         [sim[outvar].sensitivities[invar] for invar in x for outvar in output_variables]
     )
+    print('Testing with output_variables: ', output_variables)
     assert np.allclose(flat_out, check.flatten())
 
 
@@ -578,10 +582,10 @@ if __name__ == "__main__":
             test_getvar_vector,
             test_getvar_vmap,
             test_jacfwd_scalar,
-            test_jacfwd_vector,  # not working with multiple output variables
+            test_jacfwd_vector,
             test_jacfwd_vmap,
             test_jacrev_scalar,
-            # skip_test_jacrev_vector,  # not working - is this required?
+            test_jacrev_vector,
             test_jacrev_vmap,
             test_jacfwd_scalar_getvars,
             test_jacfwd_scalar_getvar,
@@ -602,7 +606,6 @@ if __name__ == "__main__":
         ]
         if 0:
             testlist = [
-                test_jacfwd_vector,  # not working with multiple output variables
             ]
 
         for test in testlist:

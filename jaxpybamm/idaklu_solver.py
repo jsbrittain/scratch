@@ -989,7 +989,7 @@ class IDAKLUSolver(pybamm.BaseSolver):
             primals = args[: len(args) // 2]
             tangents = args[len(args) // 2 :]
             t = primals[0]
-            out = jax.core.ShapedArray((len(output_variables),), t.dtype)
+            out = jax.core.ShapedArray((*t.shape, len(output_variables)), t.dtype)
             logging.info("<- f_jvp_abstract_eval")
             return out
 
@@ -1031,13 +1031,23 @@ class IDAKLUSolver(pybamm.BaseSolver):
             t = primals[0]
             inputs = primals[1:]
 
-            y_dot = jnp.zeros_like(t)
-            js = jaxify_solve(t, invar, *inputs)
-            if js.ndim == 0:
-                js = jnp.array([js])
-            for index, value in enumerate(y_bar):
-                if value > 0.0:
-                    y_dot += value * js[index]
+            if t.ndim == 0:
+                # scalar time input
+                y_dot = jnp.zeros_like(t)
+                js = jaxify_solve(t, invar, *inputs)
+                if js.ndim == 0:
+                    js = jnp.array([js])
+                for index, value in enumerate(y_bar):
+                    if value > 0.0:
+                        y_dot += value * js[index]
+            else:
+                # vector time input
+                js = jaxify_solve(t, invar, *inputs)
+                if len(output_variables) == 1:
+                    js = js.reshape((len(t), 1))
+                y_dot = jnp.zeros(())
+                for ix, y_outvar in enumerate(y_bar.T):
+                    y_dot += jnp.dot(y_outvar, js[:, ix])
             logging.debug('<- f_vjp_p_impl')
             return y_dot
 
